@@ -20,7 +20,5 @@ setup(
    install_requires=['torch==2.2.0','numpy>=1.26'], #external packages as dependencies
    python_requires='>=3.9',
    #scripts=[
-   #         'scripts/cool',
-   #         'scripts/skype',
    #        ]
 )
