@@ -1,9 +1,6 @@
 from setuptools import setup, find_packages
 
 
-# installation packages
-packages = find_packages(exclude=["build"])
-print(packages)
 with open("README.md", 'r') as f:
     long_description = f.read()
 
