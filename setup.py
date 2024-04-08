@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 
 # installation packages
-packages = find_packages(exclude=[])
+packages = find_packages(exclude=["build"])
 print(packages)
 with open("README.md", 'r') as f:
     long_description = f.read()
@@ -16,7 +16,7 @@ setup(
    author='Dominic Boutet',
    author_email='dominic.boutet@mail.mcgill.ca',
    url="tbd",
-   packages=packages,#['pystorm'],  #same as name
+   packages=['pystorm'],  #same as name
    install_requires=['torch==2.2.0','numpy>=1.26'], #external packages as dependencies
    python_requires='>=3.9',
    #scripts=[
