@@ -3,6 +3,7 @@
 /*.egg-info/*
 /build/*
 /package_build/*
+
 # Ignore notebook checkpoints
 *.ipynb_checkpoints*
 
@@ -10,8 +11,8 @@
 __pycache__/
 *.cache*
 
-# Ignore compiled files
-*.pyc
+# Ignore data files
+*.pkl
 
 # Ignore notebook builders
 /notebook_builders/*
