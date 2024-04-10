@@ -12,7 +12,7 @@ setup(
    author='Dominic Boutet',
    author_email='dominic.boutet@mail.mcgill.ca',
    url="tbd",
-   packages=['pystorm'],  #same as name
+   packages=find_packages(),#['pystorm'],  #same as name
    install_requires=['torch==2.2.0','numpy>=1.26'], #external packages as dependencies
    python_requires='>=3.9',
    #scripts=[
