@@ -8,7 +8,7 @@ It mainly operates as a library of functions to perform operations on data direc
 
 It aims to be lightweight, fast, and hopefully easily scalable to parallel computing and high performance computing.
 
-It can be installed using pip through pypi where it is named **pystorm3**
+It can be installed using pip through pypi where it is named **pystorm3**: `python -m pip install pystorm3` or `pip install pystorm3`.
 
 ## Pystorm functions
 
