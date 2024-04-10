@@ -1,12 +1,14 @@
 # Pystorm
 Python implementation of various functions from the [Brainstorm](https://neuroimage.usc.edu/brainstorm/) [repository](https://github.com/brainstorm-tools/brainstorm3), often written for GPU compatibility and/or jit compilation.
 
-## Note about the current scope of pystorm
+## Note on the current scope of Pystorm
 Pystorm does not handle interactions with Brainstorm or matlab and, in its current state, does not handle loading of data files. 
 
 It mainly operates as a library of functions to perform operations on data directly (e.g., numpy array of sensor signals and imaging kernel). 
 
 It aims to be lightweight, fast, and hopefully easily scalable to parallel computing and high performance computing.
+
+It can be installed using pip through pypi where it is named **pystorm3**
 
 ## Pystorm functions
 
