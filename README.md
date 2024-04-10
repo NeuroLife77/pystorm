@@ -11,8 +11,7 @@ It aims to be lightweight, fast, and hopefully easily scalable to parallel compu
 ## Pystorm functions
 
 ### Currently implemented
-- Power spectral density estimation ([PSD Welch method](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/timefreq/bst_psd.m), physical units only) in source and sensor space
-  - Implemented using pytorch (can operate on GPU)
+- Power spectral density estimation ([PSD Welch method](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/timefreq/bst_psd.m), physical units only) in source and sensor space (can operate on GPU)
 
 ### Coming soon
 - Band-pass filtering (equivalent to ["bst-hfilter-2019"](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/math/bst_bandpass_hfilter.m))
