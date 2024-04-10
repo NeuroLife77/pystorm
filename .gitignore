@@ -2,7 +2,7 @@
 /dist/*
 /*.egg-info/*
 /build/*
-
+/package_build/*
 # Ignore notebook checkpoints
 *.ipynb_checkpoints*
 
@@ -14,4 +14,4 @@ __pycache__/
 *.pyc
 
 # Ignore notebook builders
-/notebook_builders
+/notebook_builders/*
