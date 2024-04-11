@@ -6,6 +6,9 @@ The intent is to possibly minimize RAM usage from functions that would be execut
 
 from torch.fft import rfft as trfft
 from torch.fft import rfftfreq as trfftfreq 
+from torch.fft import fft as tfft
+from torch.fft import ifft as tifft
+from torch.fft import fftfreq as tfftfreq 
 from torch import cat as tcat
 from torch import linspace as tlinspace
 from torch import pi as tpi
@@ -19,9 +22,26 @@ from torch import from_numpy as tfrom_numpy
 from torch import complex64, complex128
 from torch import cos as tcos
 from torch import eye as teye
-
+from torch import argwhere as targwhere
+from torchaudio.functional import convolve as tconvolve
+from torchaudio.functional import fftconvolve as tfftconvolve
+from torch import float16,float32,float64
+from torch import set_default_dtype
 pi = tpi
 
+__default_dtype__ = float64
+set_default_dtype(__default_dtype__)
+def set_minitorch_default_dtype(default_type = "float64"):
+    global __default_dtype__
+    if default_type == "float16":
+        __default_dtype__ = float16
+        print("Warning: Pytorch only supports FFT of signals whose length are powers of 2 in this float type")
+    elif default_type == "float32":
+        __default_dtype__ = float32
+    else:
+        __default_dtype__ = float64
+    set_default_dtype(__default_dtype__)
+    
 
 def eye(*args, **kwargs):
     """
@@ -422,3 +442,212 @@ def cos(*args,**kwargs):
         out (Tensor, optional): the output tensor.
     """
     return tcos(*args,**kwargs)
+
+
+def fft(*args,**kwargs):
+    """  
+    fft(input, n=None, dim=-1, norm=None, *, out=None) -> Tensor
+
+    Computes the one dimensional discrete Fourier transform of :attr:`input`.
+
+    Note:
+        The Fourier domain representation of any real signal satisfies the
+        Hermitian property: `X[i] = conj(X[-i])`. This function always returns both
+        the positive and negative frequency terms even though, for real inputs, the
+        negative frequencies are redundant. :func:`~torch.fft.rfft` returns the
+        more compact one-sided representation where only the positive frequencies
+        are returned.
+
+    Note:
+        Supports torch.half and torch.chalf on CUDA with GPU Architecture SM53 or greater.
+        However it only supports powers of 2 signal length in every transformed dimension.
+
+    Args:
+        input (Tensor): the input tensor
+        n (int, optional): Signal length. If given, the input will either be zero-padded
+            or trimmed to this length before computing the FFT.
+        dim (int, optional): The dimension along which to take the one dimensional FFT.
+        norm (str, optional): Normalization mode. For the forward transform
+            (:func:`~torch.fft.fft`), these correspond to:
+
+            * ``"forward"`` - normalize by ``1/n``
+            * ``"backward"`` - no normalization
+            * ``"ortho"`` - normalize by ``1/sqrt(n)`` (making the FFT orthonormal)
+
+            Calling the backward transform (:func:`~torch.fft.ifft`) with the same
+            normalization mode will apply an overall normalization of ``1/n`` between
+            the two transforms. This is required to make :func:`~torch.fft.ifft`
+            the exact inverse.
+
+            Default is ``"backward"`` (no normalization).
+
+    Keyword args:
+        out (Tensor, optional): the output tensor.
+    """
+    return tfft(*args,**kwargs)
+
+def ifft(*args,**kwargs):
+    """
+    ifft(input, n=None, dim=-1, norm=None, *, out=None) -> Tensor
+
+    Computes the one dimensional inverse discrete Fourier transform of :attr:`input`.
+
+    Note:
+        Supports torch.half and torch.chalf on CUDA with GPU Architecture SM53 or greater.
+        However it only supports powers of 2 signal length in every transformed dimension.
+
+    Args:
+        input (Tensor): the input tensor
+        n (int, optional): Signal length. If given, the input will either be zero-padded
+            or trimmed to this length before computing the IFFT.
+        dim (int, optional): The dimension along which to take the one dimensional IFFT.
+        norm (str, optional): Normalization mode. For the backward transform
+            (:func:`~torch.fft.ifft`), these correspond to:
+
+            * ``"forward"`` - no normalization
+            * ``"backward"`` - normalize by ``1/n``
+            * ``"ortho"`` - normalize by ``1/sqrt(n)`` (making the IFFT orthonormal)
+
+            Calling the forward transform (:func:`~torch.fft.fft`) with the same
+            normalization mode will apply an overall normalization of ``1/n`` between
+            the two transforms. This is required to make :func:`~torch.fft.ifft`
+            the exact inverse.
+
+            Default is ``"backward"`` (normalize by ``1/n``).
+
+    Keyword args:
+        out (Tensor, optional): the output tensor.
+    """
+    return tifft(*args,**kwargs)
+
+def fftfreq(*args,**kwargs):
+    """
+    fftfreq(n, d=1.0, *, out=None, dtype=None, layout=torch.strided, device=None, requires_grad=False) -> Tensor
+
+    Computes the discrete Fourier Transform sample frequencies for a signal of size :attr:`n`.
+
+    Note:
+        By convention, :func:`~torch.fft.fft` returns positive frequency terms
+        first, followed by the negative frequencies in reverse order, so that
+        ``f[-i]`` for all :math:`0 < i \leq n/2`` in Python gives the negative
+        frequency terms. For an FFT of length :attr:`n` and with inputs spaced in
+        length unit :attr:`d`, the frequencies are::
+
+            f = [0, 1, ..., (n - 1) // 2, -(n // 2), ..., -1] / (d * n)
+
+    Note:
+        For even lengths, the Nyquist frequency at ``f[n/2]`` can be thought of as
+        either negative or positive. :func:`~torch.fft.fftfreq` follows NumPy's
+        convention of taking it to be negative.
+
+    Args:
+        n (int): the FFT length
+        d (float, optional): The sampling length scale.
+            The spacing between individual samples of the FFT input.
+            The default assumes unit spacing, dividing that result by the actual
+            spacing gives the result in physical frequency units.
+
+    Keyword Args:
+        out (Tensor, optional): the output tensor.
+        dtype (:class:`torch.dtype`, optional): the desired data type of returned tensor.
+            Default: if ``None``, uses a global default (see :func:`torch.set_default_dtype`).
+        layout (:class:`torch.layout`, optional): the desired layout of returned Tensor.
+            Default: ``torch.strided``.
+        device (:class:`torch.device`, optional): the desired device of returned tensor.
+            Default: if ``None``, uses the current device for the default tensor type
+            (see :func:`torch.set_default_device`). :attr:`device` will be the CPU
+            for CPU tensor types and the current CUDA device for CUDA tensor types.
+        requires_grad (bool, optional): If autograd should record operations on the
+            returned tensor. Default: ``False``.
+
+    """
+    return tfftfreq(*args,**kwargs)
+
+
+def convolve(*args, **kwargs):
+    r"""
+    Convolves inputs along their last dimension using the direct method.
+    Note that, in contrast to :meth:`torch.nn.functional.conv1d`, which actually applies the valid cross-correlation
+    operator, this function applies the true `convolution`_ operator.
+
+    .. devices:: CPU CUDA
+
+    .. properties:: Autograd TorchScript
+
+    Args:
+        x (torch.Tensor): First convolution operand, with shape `(..., N)`.
+        y (torch.Tensor): Second convolution operand, with shape `(..., M)`
+            (leading dimensions must be broadcast-able with those of ``x``).
+        mode (str, optional): Must be one of ("full", "valid", "same").
+
+            * "full": Returns the full convolution result, with shape `(..., N + M - 1)`. (Default)
+            * "valid": Returns the segment of the full convolution result corresponding to where
+              the two inputs overlap completely, with shape `(..., max(N, M) - min(N, M) + 1)`.
+            * "same": Returns the center segment of the full convolution result, with shape `(..., N)`.
+
+    Returns:
+        torch.Tensor: Result of convolving ``x`` and ``y``, with shape `(..., L)`, where
+        the leading dimensions match those of ``x`` and `L` is dictated by ``mode``.
+
+    .. _convolution:
+        https://en.wikipedia.org/wiki/Convolution
+    """
+    return tconvolve(*args,**kwargs)
+
+    
+def fftconvolve(*args, **kwargs):
+    r"""
+    Convolves inputs along their last dimension using FFT. For inputs with large last dimensions, this function
+    is generally much faster than :meth:`convolve`.
+    Note that, in contrast to :meth:`torch.nn.functional.conv1d`, which actually applies the valid cross-correlation
+    operator, this function applies the true `convolution`_ operator.
+    Also note that this function can only output float tensors (int tensor inputs will be cast to float).
+
+    .. devices:: CPU CUDA
+
+    .. properties:: Autograd TorchScript
+
+    Args:
+        x (torch.Tensor): First convolution operand, with shape `(..., N)`.
+        y (torch.Tensor): Second convolution operand, with shape `(..., M)`
+            (leading dimensions must be broadcast-able with those of ``x``).
+        mode (str, optional): Must be one of ("full", "valid", "same").
+
+            * "full": Returns the full convolution result, with shape `(..., N + M - 1)`. (Default)
+            * "valid": Returns the segment of the full convolution result corresponding to where
+              the two inputs overlap completely, with shape `(..., max(N, M) - min(N, M) + 1)`.
+            * "same": Returns the center segment of the full convolution result, with shape `(..., N)`.
+
+    Returns:
+        torch.Tensor: Result of convolving ``x`` and ``y``, with shape `(..., L)`, where
+        the leading dimensions match those of ``x`` and `L` is dictated by ``mode``.
+
+    .. _convolution:
+        https://en.wikipedia.org/wiki/Convolution
+    """
+    return tfftconvolve(*args,**kwargs)
+
+
+def argwhere(*args, **kwargs):
+    """
+    argwhere(input) -> Tensor
+
+    Returns a tensor containing the indices of all non-zero elements of
+    :attr:`input`.  Each row in the result contains the indices of a non-zero
+    element in :attr:`input`. The result is sorted lexicographically, with
+    the last index changing the fastest (C-style).
+
+    If :attr:`input` has :math:`n` dimensions, then the resulting indices tensor
+    :attr:`out` is of size :math:`(z \times n)`, where :math:`z` is the total number of
+    non-zero elements in the :attr:`input` tensor.
+
+    .. note::
+        This function is similar to NumPy's `argwhere`.
+
+        When :attr:`input` is on CUDA, this function causes host-device synchronization.
+
+    Args:
+        {input}
+
+    """
+    return targwhere(*args,**kwargs)

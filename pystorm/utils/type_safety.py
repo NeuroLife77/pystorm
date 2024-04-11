@@ -1,21 +1,21 @@
-from .minitorch import as_tensor, from_numpy
+from .minitorch import as_tensor, from_numpy, __default_dtype__
 
 def ensure_torch(x, type_float = False):
     try:
         x = as_tensor(x)
         if type_float:
-            x = x.float()
+            x = x.type(__default_dtype__)
     except:
         try:
             x = from_numpy(x)
             if type_float:
-                x = x.float()
+                x = x.type(__default_dtype__)
         except:
             pass
     
     if type_float:
         try:
-            x = x.float()
+            x = x.type(__default_dtype__)
         except:
             pass
     return x

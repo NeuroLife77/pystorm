@@ -22,8 +22,10 @@ setup(
    url='https://github.com/NeuroLife77/pystorm',
    packages=find_packages(),
    install_requires=[
-                        'torch==2.2.0',
-                        'numpy>=1.26'
+                        'torch>=2.2.0',
+                        'numpy>=1.26',
+                        'scipy>=1.13.0',
+                        'torchaudio>=2.2.0'
     ],
    python_requires='>=3.9',
    keywords = [

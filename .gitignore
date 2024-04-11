@@ -1,5 +1,6 @@
 # Ignore source release files
 /dist/*
+/dist_archives/*
 /*.egg-info/*
 /build/*
 /package_build/*
