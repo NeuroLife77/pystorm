@@ -1,5 +1,5 @@
 from pystorm.utils import minitorch as mnt
-from pystorm.utils.type_safety import ensure_torch, ensure_numpy
+from pystorm.utils.minitorch import ensure_numpy
 
 def welch_psd_source_space(time_series, fs, ker = None,window_length=2000, overlap = 0.5, device = "cpu"):
     if ker is None:
@@ -11,8 +11,11 @@ def welch_psd_source_space(time_series, fs, ker = None,window_length=2000, overl
     Nwin = int((nTime - Loverlap)/(Lwin-Loverlap))
 
     freqs = mnt.rfftfreq(Lwin,1/fs).to(device)
-    ker_cuda = ensure_torch(ker).to(device).type(mnt.complex64)
-    sensor_cuda = ensure_torch(time_series).to(device)
+    if time_series.dtype == mnt.float32:
+        mnt.set_minitorch_default_dtype("float32")
+        print(mnt.__default_complex_dtype__)
+    ker_cuda = mnt.ensure_torch(ker, type_float=True).to(device).type(mnt.__default_complex_dtype__)
+    sensor_cuda = mnt.ensure_torch(time_series, type_float=True).to(device)
     hamming_window = (0.54 - 0.46 * mnt.cos(mnt.linspace(0,2*mnt.pi,Lwin))).to(device)
 
     win_noise_power_gain = (hamming_window**2).sum()
@@ -37,7 +40,7 @@ def welch_psd_sensor_space(time_series, fs, window_length=2000, overlap = 0.5, d
     Nwin = int((nTime - Loverlap)/(Lwin-Loverlap))
 
     freqs = mnt.rfftfreq(Lwin,1/fs).to(device)
-    sensor_cuda = ensure_torch(time_series).to(device)
+    sensor_cuda = mnt.ensure_torch(time_series).to(device)
     hamming_window = (0.54 - 0.46 * mnt.cos(mnt.linspace(0,2*mnt.pi,Lwin))).to(device)
 
     win_noise_power_gain = (hamming_window**2).sum()

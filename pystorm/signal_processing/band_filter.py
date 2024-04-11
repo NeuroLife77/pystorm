@@ -1,4 +1,4 @@
-from pystorm.utils.type_safety import ensure_numpy, ensure_torch
+from pystorm.utils.minitorch import ensure_numpy, ensure_torch
 from scipy.signal import firwin
 from math import ceil 
 from pystorm import minitorch as mnt

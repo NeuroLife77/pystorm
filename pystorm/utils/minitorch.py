@@ -30,18 +30,60 @@ from torch import set_default_dtype
 pi = tpi
 
 __default_dtype__ = float64
+__default_complex_dtype__ = complex128
 set_default_dtype(__default_dtype__)
 def set_minitorch_default_dtype(default_type = "float64"):
-    global __default_dtype__
+    global __default_dtype__, __default_complex_dtype__
     if default_type == "float16":
         __default_dtype__ = float16
         print("Warning: Pytorch only supports FFT of signals whose length are powers of 2 in this float type")
     elif default_type == "float32":
         __default_dtype__ = float32
+        __default_complex_dtype__ = complex64
     else:
         __default_dtype__ = float64
+        __default_complex_dtype__ = complex128
     set_default_dtype(__default_dtype__)
     
+
+def ensure_torch(x, type_float = False):
+    try:
+        x = as_tensor(x)
+        if type_float:
+            x = x.type(__default_dtype__)
+    except:
+        try:
+            x = from_numpy(x)
+            if type_float:
+                x = x.type(__default_dtype__)
+        except:
+            pass
+    
+    if type_float:
+        try:
+            x = x.type(__default_dtype__)
+        except:
+            pass
+    return x
+
+def ensure_numpy(x):
+    
+    try:
+        x = x.detach()
+    except:
+        pass
+    
+    try:
+        x = x.to('cpu')
+    except:
+        pass
+    
+    try:
+        x = x.numpy()
+    except:
+        pass
+    
+    return x
 
 def eye(*args, **kwargs):
     """

@@ -1,4 +1,4 @@
-from pystorm.utils.type_safety import ensure_numpy, ensure_torch
+from pystorm.utils.minitorch import ensure_numpy, ensure_torch
 from pystorm.signal_processing import band_pass
 from pystorm import minitorch as mnt
 
