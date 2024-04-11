@@ -11,9 +11,6 @@ def welch_psd_source_space(time_series, fs, ker = None,window_length=2000, overl
     Nwin = int((nTime - Loverlap)/(Lwin-Loverlap))
 
     freqs = mnt.rfftfreq(Lwin,1/fs).to(device)
-    if time_series.dtype == mnt.float32:
-        mnt.set_minitorch_default_dtype("float32")
-        print(mnt.__default_complex_dtype__)
     ker_cuda = mnt.ensure_torch(ker, type_float=True).to(device).type(mnt.__default_complex_dtype__)
     sensor_cuda = mnt.ensure_torch(time_series, type_float=True).to(device)
     hamming_window = (0.54 - 0.46 * mnt.cos(mnt.linspace(0,2*mnt.pi,Lwin))).to(device)

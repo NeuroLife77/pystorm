@@ -78,7 +78,6 @@ def band_pass_torchaudio(signal,win, fs, return_pad = 0.2, convolve_type = "auto
         remaining_margin_end = None
     win = win.view(*[1 for _ in range(len(padded_signal.shape[:-1]))],-1)
     if win.dtype != padded_signal.dtype:
-        print("correcting")
         win = ensure_torch(win,type_float=True)
         padded_signal = ensure_torch(padded_signal,type_float=True)
     filtered_signal = convolve(padded_signal,win, mode = "full")[...,remaining_margin_start:remaining_margin_end]
