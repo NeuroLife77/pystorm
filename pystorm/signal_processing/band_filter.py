@@ -94,9 +94,9 @@ def band_pass_torchaudio(
     win = ensure_torch(win)
     
     if convolve_type == "fft" or (convolve_type == "auto" and len(win)*signal.shape[-1]>1e5 and abs(len(win)-signal.shape[-1])>1e2):
-        convolve = mnt.tfftconvolve
+        convolve = mnt.fftconvolve
     else:
-        convolve = mnt.tconvolve
+        convolve = mnt.convolve
 
     win = win.to(device)
 
