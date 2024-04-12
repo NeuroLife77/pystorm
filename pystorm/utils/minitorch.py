@@ -1,38 +1,62 @@
 """
-A module that serves as lightweight pytorch.
+A module that serves as a lightweight pytorch++ (also has some numpy<->pytorch conversion utils, and some torchaudio functions).
 
-The intent is to possibly minimize RAM usage from functions that would be executed by multiple processes in parallel on the GPU.
+It is intended to be a quality-of-life module that groups most pytorch-related functions that are used repeatedly within the package and to possibly minimize GPU RAM usage from imports when executing jobs with multiple processes running on the GPU in parallel.
+
+The functions are 'copied' and not just imported to have their original docstrings available.
 """
 
-from torch.fft import rfft as trfft
-from torch.fft import rfftfreq as trfftfreq 
-from torch.fft import fft as tfft
-from torch.fft import ifft as tifft
-from torch.fft import fftfreq as tfftfreq 
-from torch import cat as tcat
-from torch import linspace as tlinspace
-from torch import pi as tpi
-from torch import arange as tarange
-from torch import zeros as tzeros
-from torch import zeros_like as  tzeros_like
-from torch import ones_like as  tones_like
-from torch import ones as tones
-from torch import as_tensor as tas_tensor
-from torch import from_numpy as tfrom_numpy
+from torch.fft import rfft as _rfft
+from torch.fft import rfftfreq as _rfftfreq 
+from torch.fft import fft as _fft
+from torch.fft import ifft as _ifft
+from torch.fft import fftfreq as _fftfreq 
+from torch import cat as _cat
+from torch import linspace as _linspace
+from torch import pi as _pi
+from torch import arange as _arange
+from torch import zeros as _zeros
+from torch import zeros_like as  _zeros_like
+from torch import ones_like as  _ones_like
+from torch import ones as _ones
+from torch import as_tensor as _as_tensor
+from torch import from_numpy as _from_numpy
 from torch import complex64, complex128
-from torch import cos as tcos
-from torch import eye as teye
-from torch import argwhere as targwhere
-from torchaudio.functional import convolve as tconvolve
-from torchaudio.functional import fftconvolve as tfftconvolve
+from torch import cos as _cos
+from torch import eye as _eye
+from torch import argwhere as _argwhere
+from torchaudio.functional import convolve as _convolve
+from torchaudio.functional import fftconvolve as _fftconvolve
 from torch import float16,float32,float64
 from torch import set_default_dtype
-pi = tpi
-
+from numpy import ndarray as _ndarray
+from torch import Tensor as _Tensor
+pi = _pi
+__all__=[
+        "rfft","rfftfreq","fft","ifft","fftfreq","convolve","fftconvolve",
+        "linspace","arange","argwhere",
+        "cat","zeros","ones","zeros_like","ones_like","eye",
+        "as_tensor","from_numpy","ensure_numpy","ensure_torch",
+        "cos","pi",
+        "float16","float32","float64","complex64","complex128",
+        "set_minitorch_default_dtype","__default_dtype__","__default_complex_dtype__"
+]
 __default_dtype__ = float64
 __default_complex_dtype__ = complex128
 set_default_dtype(__default_dtype__)
-def set_minitorch_default_dtype(default_type = "float64"):
+def set_minitorch_default_dtype(default_type: str = "float64"):
+    """ This function allows for specifying a floating point precision (and its matching complex precision). Default is float64 and complex128.
+
+        Args: 
+            None
+        Keyword Args: 
+            default_type: str     
+                String that specifies the default floating point type of the pytorch backend
+        Returns: 
+            None
+
+    """
+
     global __default_dtype__, __default_complex_dtype__
     if default_type == "float16":
         __default_dtype__ = float16
@@ -46,43 +70,131 @@ def set_minitorch_default_dtype(default_type = "float64"):
     set_default_dtype(__default_dtype__)
     
 
-def ensure_torch(x, type_float = False):
-    try:
-        x = as_tensor(x)
-        if type_float:
-            x = x.type(__default_dtype__)
-    except:
+def ensure_torch(x, type_float: bool = False, type_complex: bool = False):
+    """ This function ensures that the variable is a torch tensor. It optionally also ensures that it is of the default type (as set by 'set_minitorch_default_dtype').
+    
+        Args: 
+            x: list/numpy array/torch tensor/primitive type that can be contained in a torch tensor (e.g., float, int, bool)
+                Input variable.
+        Keyword Args: 
+            type_float: bool          
+                Specifies whether to set the type of the tensor.
+            type_complex: bool        
+                Specifies if the type of the tensor is meant to be complex
+        Returns:
+            x: Torch tensor
+                The input ensured to be a torch tensor.
+
+    """
+    dtype_setting = __default_dtype__
+    if type_complex:
+        dtype_setting = __default_complex_dtype__
+    if isinstance(x, _Tensor):
+        if not type_float:
+            return x
         try:
-            x = from_numpy(x)
-            if type_float:
-                x = x.type(__default_dtype__)
+            x = x.type(dtype_setting)
+            return x
         except:
             pass
-    
-    if type_float:
+    try:
+        x = _as_tensor(x)
+        if type_float:
+            x = x.type(dtype_setting)
+        return x
+    except:
         try:
-            x = x.type(__default_dtype__)
+            x = _from_numpy(x)
+            if type_float:
+                x = x.type(dtype_setting)
+            return x
         except:
             pass
     return x
 
-def ensure_numpy(x):
+
+def _ensure_torch(x, type_float: bool = False, type_complex: bool = False):
+    """ This function ensures that the variable is a torch tensor. It optionally also ensures that it is of the default type (as set by 'set_minitorch_default_dtype'). Differs from 'ensure_torch' by returning False if it could not cast it as a tensor instead of returning the input.
     
+        Args: 
+            x: list/numpy array/torch tensor/primitive type that can be contained in a torch tensor (e.g., float, int, bool)
+                Input variable.
+        Keyword Args: 
+            type_float: bool          
+                Specifies whether to set the type of the tensor.
+            type_complex: bool        
+                Specifies if the type of the tensor is meant to be complex
+        Returns:
+            casting_success: bool
+                Boolean that specifies if casting succeeded or not. 
+            x: Torch tensor
+                The input ensured to be a torch tensor.
+
+    """
+    dtype_setting = __default_dtype__
+    if type_complex:
+        dtype_setting = __default_complex_dtype__
+    if isinstance(x, _Tensor):
+        if not type_float:
+            return True, x
+        try:
+            x = x.type(dtype_setting)
+            return True, x
+        except:
+            pass
+    try:
+        x = _as_tensor(x)
+        if type_float:
+            x = x.type(dtype_setting)
+        return True, x
+    except:
+        try:
+            x = _from_numpy(x)
+            if type_float:
+                x = x.type(dtype_setting)
+            return True, x
+        except:
+            pass
+    return False, x
+
+def ensure_numpy(x):
+    """ This function ensures that the variable is a numpy array. 
+    
+        Args: 
+            x: list/numpy array/torch tensor/primitive type that can be contained in a numpy array (e.g., float, int, bool)
+                Input variable.
+        Keyword Args: 
+            None
+        Returns: 
+            x: numpy array (or original variable if casting failed)                 
+                The input ensured to be a numpy array.
+
+    """ 
+    if isinstance(x, _ndarray):
+        return x
     try:
         x = x.detach()
     except:
         pass
     
     try:
-        x = x.to('cpu')
+        x = x.cpu()
     except:
         pass
     
     try:
         x = x.numpy()
     except:
-        pass
-    
+        # Handle the case where it's a list
+        try:
+            is_torch_now, x = _ensure_torch(x)
+            if is_torch_now: # Avoids infinite loop if for some reason casting fails
+                x = ensure_numpy(x)
+                return x
+            else:
+                return x
+        except:
+            pass
     return x
 
 def eye(*args, **kwargs):
@@ -111,7 +223,7 @@ def eye(*args, **kwargs):
     Returns:
         Tensor: A 2-D tensor with ones on the diagonal and zeros elsewhere
         """
-    return teye(*args,**kwargs)
+    return _eye(*args,**kwargs)
 
 def zeros(*args, **kwargs):
     """
@@ -137,7 +249,7 @@ def zeros(*args, **kwargs):
         requires_grad (bool, optional): If autograd should record operations on the
             returned tensor. Default: ``False``.
             """
-    return tzeros(*args,**kwargs)
+    return _zeros(*args,**kwargs)
 
 def ones(*args, **kwargs):
     """
@@ -163,7 +275,7 @@ def ones(*args, **kwargs):
         requires_grad (bool, optional): If autograd should record operations on the
             returned tensor. Default: ``False``.
         """
-    return tones(*args,**kwargs)
+    return _ones(*args,**kwargs)
 
 def cat(*args, **kwargs):
     """
@@ -191,7 +303,7 @@ def cat(*args, **kwargs):
     Keyword args:
         out (Tensor, optional): the output tensor.
     """
-    return tcat(*args,**kwargs)
+    return _cat(*args,**kwargs)
 
 def arange(*args, **kwargs):
     """
@@ -231,7 +343,7 @@ def arange(*args, **kwargs):
             returned tensor. Default: ``False``.
 
     """
-    return tarange(*args,**kwargs)
+    return _arange(*args,**kwargs)
 
 def linspace(*args, **kwargs):
     """
@@ -270,7 +382,7 @@ def linspace(*args, **kwargs):
         requires_grad (bool, optional): If autograd should record operations on the
             returned tensor. Default: ``False``.
     """
-    return tlinspace(*args,**kwargs)
+    return _linspace(*args,**kwargs)
 
 def ones_like(*args, **kwargs):
     """
@@ -301,7 +413,7 @@ def ones_like(*args, **kwargs):
             returned Tensor. Default: ``torch.preserve_format``.
 
     """
-    return tones_like(*args,**kwargs)
+    return _ones_like(*args,**kwargs)
 
 def zeros_like(*args, **kwargs):
     """
@@ -332,7 +444,7 @@ def zeros_like(*args, **kwargs):
             returned Tensor. Default: ``torch.preserve_format``.
 
     """
-    return tzeros_like(*args,**kwargs)
+    return _zeros_like(*args,**kwargs)
 
 def as_tensor(*args,**kwargs):
     """
@@ -364,7 +476,7 @@ def as_tensor(*args,**kwargs):
             the result tensor is constructed on the current device.
 
     """
-    return tas_tensor(*args,**kwargs)
+    return _as_tensor(*args,**kwargs)
 
 
 def from_numpy(*args,**kwargs):
@@ -387,7 +499,7 @@ def from_numpy(*args,**kwargs):
         Writing to a tensor created from a read-only NumPy array is not supported and will result in undefined behavior.
 
     """
-    return tfrom_numpy(*args,**kwargs)
+    return _from_numpy(*args,**kwargs)
 
 def rfft(*args,**kwargs):
     """
@@ -425,7 +537,7 @@ def rfft(*args,**kwargs):
     Keyword args:
         out (Tensor, optional): the output tensor.
     """
-    return trfft(*args,**kwargs)
+    return _rfft(*args,**kwargs)
     
 def rfftfreq(*args,**kwargs):
     """
@@ -465,7 +577,7 @@ def rfftfreq(*args,**kwargs):
         requires_grad (bool, optional): If autograd should record operations on the
             returned tensor. Default: ``False``.
     """
-    return trfftfreq(*args,**kwargs)
+    return _rfftfreq(*args,**kwargs)
 
 def cos(*args,**kwargs):
     """
@@ -483,7 +595,7 @@ def cos(*args,**kwargs):
     Keyword args:
         out (Tensor, optional): the output tensor.
     """
-    return tcos(*args,**kwargs)
+    return _cos(*args,**kwargs)
 
 
 def fft(*args,**kwargs):
@@ -526,7 +638,7 @@ def fft(*args,**kwargs):
     Keyword args:
         out (Tensor, optional): the output tensor.
     """
-    return tfft(*args,**kwargs)
+    return _fft(*args,**kwargs)
 
 def ifft(*args,**kwargs):
     """
@@ -560,7 +672,7 @@ def ifft(*args,**kwargs):
     Keyword args:
         out (Tensor, optional): the output tensor.
     """
-    return tifft(*args,**kwargs)
+    return _ifft(*args,**kwargs)
 
 def fftfreq(*args,**kwargs):
     """
@@ -603,7 +715,7 @@ def fftfreq(*args,**kwargs):
             returned tensor. Default: ``False``.
 
     """
-    return tfftfreq(*args,**kwargs)
+    return _fftfreq(*args,**kwargs)
 
 
 def convolve(*args, **kwargs):
@@ -634,7 +746,7 @@ def convolve(*args, **kwargs):
     .. _convolution:
         https://en.wikipedia.org/wiki/Convolution
     """
-    return tconvolve(*args,**kwargs)
+    return _convolve(*args,**kwargs)
 
     
 def fftconvolve(*args, **kwargs):
@@ -667,7 +779,7 @@ def fftconvolve(*args, **kwargs):
     .. _convolution:
         https://en.wikipedia.org/wiki/Convolution
     """
-    return tfftconvolve(*args,**kwargs)
+    return _fftconvolve(*args,**kwargs)
 
 
 def argwhere(*args, **kwargs):
@@ -692,4 +804,4 @@ def argwhere(*args, **kwargs):
         {input}
 
     """
-    return targwhere(*args,**kwargs)
+    return _argwhere(*args,**kwargs)

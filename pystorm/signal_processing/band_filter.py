@@ -1,18 +1,40 @@
 from pystorm.utils.minitorch import ensure_numpy, ensure_torch
-from scipy.signal import firwin
-from math import ceil 
-from pystorm import minitorch as mnt
+from scipy.signal import firwin as _firwin
+from math import ceil as _ceil 
+from pystorm import mnt
+
+__all__ = ["get_fir_window","band_pass_torchaudio","band_pass"]
 
 def get_firwin(ntaps, centered_band, beta, fs):
-    return firwin(ntaps, centered_band, window=("kaiser", beta), scale = True, pass_zero=False,fs=fs)
+    return _firwin(ntaps, centered_band, window=("kaiser", beta), scale = True, pass_zero=False,fs=fs)
 
-def get_fir_window(band, ripple, width, fs):
-    """
+def get_fir_window(band, ripple:float, width:float, fs:int):
+    """ This function computes the impulse response of the band-pass filter to get the exact same filter as bst-hfilter-2019 in brainstorm.
+    
+        Args: 
+            band: list/numpy array/torch tensor 
+                Contains the frequency range of the filter.
+            ripple : float
+                Positive number specifying maximum ripple in passband (dB) and minimum
+                ripple in stopband.
+            width : float
+                Width of transition region (normalized so that 1 corresponds to pi
+                radians / sample).
+            fs : int
+                Sampling rate of the signal.
+        Keyword Args: 
+            None
+        Returns: 
+            window:                          
+                The impulse response of the filter.
+
+
     Shamelessly stolen from 
     https://github.com/scipy/scipy/blob/v0.14.0/scipy/signal/fir_filter_design.py#L85
     and 
     https://github.com/scipy/scipy/blob/v0.14.0/scipy/signal/fir_filter_design.py#L29 
     """
+    band = ensure_numpy(band)
     width_norm = width/(0.5*fs)
     a = abs(ripple)  
     if a > 50:
@@ -23,7 +45,7 @@ def get_fir_window(band, ripple, width, fs):
         beta = 0.0
     beta = round(beta,4)
     numtaps = (a - 7.95) / 2.285 / (mnt.pi * width_norm) + 1
-    ntaps = int(ceil(numtaps))
+    ntaps = int(_ceil(numtaps))
     ntaps = ntaps + (1-ntaps%2)
     centered_band = ensure_numpy([1e-5,fs//2 - 1])
     if band[0] is not None:
@@ -34,7 +56,40 @@ def get_fir_window(band, ripple, width, fs):
     window = get_firwin(ntaps, centered_band,beta, fs)
     return window
 
-def band_pass_torchaudio(signal,win, fs, return_pad = 0.2, convolve_type = "auto", device="cpu", verbose = 1, return_numba_compatible = False):
+def band_pass_torchaudio(
+                            signal, win, fs:int,
+                            return_pad = 0.2,
+                            convolve_type = "auto", device="cpu",
+                            verbose = 1, return_numba_compatible = False
+    ):
+
+    """ This function applies the band pass filtering by convolving the signal and the impulse response using torchaudio's convolve or fftconvolve functions. Can be applied to signals of any shapes but only takes in a single impulse response and applies the convolution over the last dimension of the signal (time series should be along dim=-1).
+    
+        Args: 
+            signal: list/numpy array/torch tensor 
+                The signal to filter
+            win: list/numpy array/torch tensor 
+                The impulse response of the filter.
+            fs : int
+                The signal's sampling rate.
+        Keyword Args: 
+            return_pad : float
+                The percentage of the padding to keep in the returned filtered signal.
+            convolve_type : str
+                Specifies which method to use for convolution.
+            device: str
+                Specifies the device in which to apply the filtering.
+            verbose: int
+                Specifies the verbosity of the function call.
+            return_numba_compatible: bool
+                Specifies whether to combine the (possibly still padded) filtered signal and the mask of the signal (specifying the location of the signal within the padded signal) into a single array which is required when calling this function through a numba-compiled function. [not useful yet]
+        Returns: 
+            filtered_signal: numpy array                       
+                The (possibly still padded) filtered signal.
+            signal_mask: numpy array
+                The mask of the signal (specifying the location of the signal within the padded signal) 
+    """
+
     signal = ensure_torch(signal)
     win = ensure_torch(win)
     
@@ -95,11 +150,53 @@ def band_pass_torchaudio(signal,win, fs, return_pad = 0.2, convolve_type = "auto
     else:
         return ensure_numpy(filtered_signal), ensure_numpy(signal_mask)
 
-def band_pass(signal,fs,band,ripple = 60, width = 1.0, keep_pad_percent = 0.2,convolve_type = "auto",  return_with_pad = False, backend = "torch", device="cpu"):
+def band_pass(
+                signal,fs:int,band,
+                ripple = 60.0, width = 1.0, 
+                keep_pad_percent = 0.2,
+                convolve_type = "auto",  return_with_pad = False, 
+                backend = "torch", device="cpu", verbose = 1
+    ):
+
+    """ This function applies the band pass filtering by convolving the signal and the impulse response. Can be applied to signals of any shapes (currently, might vary with different backends) but only takes in a single impulse response and applies the convolution over the last dimension of the signal (time series should be along dim=-1).
+    
+        Args: 
+            signal: list/numpy array/torch tensor 
+                The signal to filter.
+            fs: : int
+                The signal's sampling rate.
+            band: list/numpy array/torch tensor 
+                Contains the frequency range of the filter.
+        Keyword Args: 
+            ripple : float
+                Positive number specifying maximum ripple in passband (dB) and minimum
+                ripple in stopband.
+            width : float
+                Width of transition region (normalized so that 1 corresponds to pi
+                radians / sample).
+            keep_pad_percent : float
+                The percentage of the padding to keep in the returned filtered signal.
+            convolve_type : str
+                Specifies which method to use for convolution.
+            return_with_pad: bool
+                Specifies whether to return the (padded) signal with its mask or to return the (unpadded) signal directly.
+            backend: str
+                Specifies which backend to use. [Currently only 'torch' is available.]
+            device: str
+                Specifies the device in which to apply the filtering.
+            verbose: int
+                Specifies the verbosity of the function call.
+        Returns: 
+            filtered_signal: numpy array                       
+                The (possibly still padded) filtered signal.
+            signal_mask: numpy array
+                The mask of the signal (specifying the location of the signal within the padded signal) 
+    """
+
     band = ensure_numpy(band)
     win = get_fir_window(band,ripple,width,fs)
     if backend == "torch":
-        filtered_signal, filtered_mask = band_pass_torchaudio(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type, device=device)
+        filtered_signal, filtered_mask = band_pass_torchaudio(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type, device=device,verbose=verbose)
     else: # For future use
         raise NotImplementedError('The only backend available for now is "torch".')
     if return_with_pad:

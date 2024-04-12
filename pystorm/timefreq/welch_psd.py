@@ -1,7 +1,34 @@
 from pystorm.utils import minitorch as mnt
 from pystorm.utils.minitorch import ensure_numpy
+__all__ = ["welch_psd_source_space", "welch_psd_sensor_space"]
 
-def welch_psd_source_space(time_series, fs, ker = None,window_length=2000, overlap = 0.5, device = "cpu"):
+def welch_psd_source_space(time_series, fs:int, ker = None, window_length=2000, overlap = 0.5, device = "cpu"):
+
+    
+    """ This function computes the PSD of source-space signals using the welch method. It can be called on the source time series directly or on the sensor time series with the imaging kernel
+    
+        Args: 
+            time_series: list/numpy array/torch tensor 
+                The time series over which to compute the PSD
+            fs : int
+                The signal's sampling rate.
+        Keyword Args: 
+            ker: list/numpy array/torch tensor 
+                The imaging kernel (must be passed in only if the time_series is a sensor-space signal)
+            window_length : float
+                Length of the sliding window (in miliseconds)
+            overlap : float
+                Overlap percentage between windows (in 0-1 range)
+            device: str
+                Specifies the device in which to apply the filtering.
+        Returns: 
+            psd: numpy array                       
+                The PSD of the source signal
+            freqs: numpy array                       
+                The frequencies of the PSD.
+    """
+
+
     if ker is None:
         return welch_psd_sensor_space(time_series, fs, window_length=window_length, overlap = overlap, device = device)
     nTime = time_series.shape[-1]
@@ -27,9 +54,31 @@ def welch_psd_source_space(time_series, fs, ker = None,window_length=2000, overl
         fft_res = mnt.rfft(source_ts,dim = -1) * scaling_term
         fft_res[:,1:] /= 2**(1/2)
         fft_blocks += (ker_cuda @ fft_res).abs()**2/Nwin
+        
     return ensure_numpy(fft_blocks), ensure_numpy(freqs)
 
-def welch_psd_sensor_space(time_series, fs, window_length=2000, overlap = 0.5, device = "cpu"):
+def welch_psd_sensor_space(time_series, fs:int, window_length=2000, overlap = 0.5, device = "cpu"):
+    """ This function computes the PSD of sensor-space signals using the welch method.
+    
+        Args: 
+            time_series: list/numpy array/torch tensor 
+                The sensor time series over which to compute the PSD
+            fs : int
+                The signal's sampling rate.
+        Keyword Args: 
+            window_length : float
+                Length of the sliding window (in miliseconds)
+            overlap : float
+                Overlap percentage between windows (in 0-1 range)
+            device: str
+                Specifies the device in which to apply the filtering.
+        Returns: 
+            psd: numpy array                       
+                The PSD of the sensor signal
+            freqs: numpy array                       
+                The frequencies of the PSD.
+    """
+
     nTime = time_series.shape[-1]
     Lwin = round(window_length/1000*fs)
     Loverlap = round(Lwin * overlap)
@@ -52,4 +101,5 @@ def welch_psd_sensor_space(time_series, fs, window_length=2000, overlap = 0.5, d
         fft_res = mnt.rfft(source_ts,dim = -1) * scaling_term
         fft_res[:,1:] /= 2**(1/2)
         fft_blocks += (fft_res).abs()**2/Nwin
+
     return ensure_numpy(fft_blocks), ensure_numpy(freqs)
