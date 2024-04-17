@@ -35,7 +35,6 @@ setup(
                     'neural oscillations',
                     'time series analysis',
                     'time frequency analysis',
-                    'electrophysiology'
     ],
    classifiers=[
                 'Development Status :: 1 - Planning',
