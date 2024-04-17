@@ -30,7 +30,17 @@ from torchaudio.functional import fftconvolve as _fftconvolve
 from torch import float16,float32,float64
 from torch import set_default_dtype
 from numpy import ndarray as _ndarray
+from numpy import float32 as _np_float32
+from numpy import float64 as _np_float64
+from numpy import complex64 as _np_complex64
+from numpy import complex128 as _np_complex128
+from numpy import array as _np_array
 from torch import Tensor as _Tensor
+from torch.cuda import mem_get_info as _mem_get_info
+
+def _check_available_memory():
+    return _mem_get_info()[0]
+
 pi = _pi
 __all__=[
         "rfft","rfftfreq","fft","ifft","fftfreq","convolve","fftconvolve",
@@ -38,11 +48,16 @@ __all__=[
         "cat","zeros","ones","zeros_like","ones_like","eye",
         "as_tensor","from_numpy","ensure_numpy","ensure_torch",
         "cos","pi",
-        "float16","float32","float64","complex64","complex128",
-        "set_minitorch_default_dtype","__default_dtype__","__default_complex_dtype__"
+        "float16","float32","float64","complex64","complex128","_np_float32","_np_float64",
+        "set_minitorch_default_dtype","__default_dtype__","__default_complex_dtype__","_check_available_memory"
 ]
 __default_dtype__ = float64
 __default_complex_dtype__ = complex128
+__default_np_dtype__ = _np_float64
+__default_np_complex_dtype__ = _np_complex128
+__default_dtype_str__ = "float64"
+__default_complex_dtype_str__ = "complex128"
+
 set_default_dtype(__default_dtype__)
 def set_minitorch_default_dtype(default_type: str = "float64"):
     """ This function allows for specifying a floating point precision (and its matching complex precision). Default is float64 and complex128.
@@ -57,17 +72,27 @@ def set_minitorch_default_dtype(default_type: str = "float64"):
 
     """
 
-    global __default_dtype__, __default_complex_dtype__
+    global __default_dtype__, __default_complex_dtype__, __default_np_dtype__, __default_np_complex_dtype__, __default_dtype_str__, __default_complex_dtype_str__
     if default_type == "float16":
         __default_dtype__ = float16
-        print("Warning: Pytorch only supports FFT of signals whose length are powers of 2 in this float type")
+        __default_dtype_str__ = "float16"
+        print("Precision Type Warning [minitorch]: Most functions don't support this type (for now).")
     elif default_type == "float32":
         __default_dtype__ = float32
+        __default_np_dtype__ = _np_float32
+        __default_np_complex_dtype__ = _np_complex64
         __default_complex_dtype__ = complex64
+        __default_dtype_str__ = "float32"
+        __default_complex_dtype_str__ = "complex64"
     else:
         __default_dtype__ = float64
+        __default_np_dtype__ = _np_float64
+        __default_np_complex_dtype__ = _np_complex128
         __default_complex_dtype__ = complex128
+        __default_dtype_str__ = "float64"
+        __default_complex_dtype_str__ = "complex128"
     set_default_dtype(__default_dtype__)
+    print("Type Warning: All previously defined tensors or arrays might have incompatible types with the new default, this could cause some functions to crash, especially those that depend on numba.")
     
 
 def ensure_torch(x, type_float: bool = False, type_complex: bool = False):
@@ -113,6 +138,60 @@ def ensure_torch(x, type_float: bool = False, type_complex: bool = False):
     return x
 
 
+def ensure_numpy(x, type_float: bool = False, type_complex: bool = False):
+    """ This function ensures that the variable is a torch tensor. It optionally also ensures that it is of the default type (as set by 'set_minitorch_default_dtype').
+    
+        Args: 
+            x: list/numpy array/torch tensor/primitive type that can be contained in a torch tensor (e.g., float, int, bool)
+                Input variable.
+        Keyword Args: 
+            type_float: bool          
+                Specifies whether to set the type of the tensor.
+            type_complex: bool        
+                Specifies if the type of the tensor is meant to be complex
+        Returns:
+            x: Torch tensor
+                The input ensured to be a torch tensor.
+
+    """
+    dtype_setting = __default_np_dtype__
+    if type_complex:
+        dtype_setting = __default_np_complex_dtype__
+    if isinstance(x, _ndarray):
+        if not type_float:
+            return x
+        try:
+            x = x.astype(dtype_setting)
+            return x
+        except:
+            pass
+    try:
+        x = x.detach()
+    except:
+        pass
+    try:
+        x = x.cpu()
+    except:
+        pass
+    try:
+        x = x.numpy()
+    except:
+        pass
+    if type_float:
+        try:
+            x = x.astype(dtype_setting)
+            return x
+        except:
+            pass
+    try:
+        x = _np_array(x)
+        if type_float:
+            x = x.astype(dtype_setting)
+        return x
+    except:
+        pass
+    return x
+
 def _ensure_torch(x, type_float: bool = False, type_complex: bool = False):
     """ This function ensures that the variable is a torch tensor. It optionally also ensures that it is of the default type (as set by 'set_minitorch_default_dtype'). Differs from 'ensure_torch' by returning False if it could not cast it as a tensor instead of returning the input.
     
@@ -157,7 +236,7 @@ def _ensure_torch(x, type_float: bool = False, type_complex: bool = False):
             pass
     return False, x
 
-def ensure_numpy(x):
+def _ensure_numpy_old(x):
     """ This function ensures that the variable is a numpy array. 
     
         Args: 
@@ -185,7 +264,6 @@ def ensure_numpy(x):
     try:
         x = x.numpy()
     except:
-        # Handle the case where it's a list
         try:
             is_torch_now, x = _ensure_torch(x)
             if is_torch_now: # Avoids infinite loop if for some reason casting fails

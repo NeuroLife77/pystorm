@@ -25,7 +25,8 @@ setup(
                         'torch>=2.2.0',
                         'numpy>=1.26',
                         'scipy>=1.13.0',
-                        'torchaudio>=2.2.0'
+                        'torchaudio>=2.2.0',
+                        "numba>=0.59"
     ],
    python_requires='>=3.9',
    keywords = [

@@ -18,5 +18,6 @@ from .utils import *
 from .utils import minitorch as mnt
 from .signal_processing import *
 from .timefreq import *
+from .connectivity import *
 
 from .version import __version__
