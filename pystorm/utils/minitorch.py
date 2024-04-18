@@ -92,7 +92,7 @@ def set_minitorch_default_dtype(default_type: str = "float64"):
         __default_dtype_str__ = "float64"
         __default_complex_dtype_str__ = "complex128"
     set_default_dtype(__default_dtype__)
-    print("Type Warning: All previously defined tensors or arrays might have incompatible types with the new default, this could cause some functions to crash, especially those that depend on numba.")
+    print("Type Warning [set_minitorch_default_dtype()]: All previously defined tensors or arrays might have incompatible types with the new default, this could cause some functions to crash, especially those that depend on numba.")
     
 
 def ensure_torch(x, type_float: bool = False, type_complex: bool = False):
@@ -139,21 +139,21 @@ def ensure_torch(x, type_float: bool = False, type_complex: bool = False):
 
 
 def ensure_numpy(x, type_float: bool = False, type_complex: bool = False):
-    """ This function ensures that the variable is a torch tensor. It optionally also ensures that it is of the default type (as set by 'set_minitorch_default_dtype').
+    """ This function ensures that the variable is a numpy array.  It optionally also ensures that it is of the default type (as set by 'set_minitorch_default_dtype')
     
         Args: 
-            x: list/numpy array/torch tensor/primitive type that can be contained in a torch tensor (e.g., float, int, bool)
+            x: list/numpy array/torch tensor/primitive type that can be contained in a numpy array (e.g., float, int, bool)
                 Input variable.
         Keyword Args: 
             type_float: bool          
                 Specifies whether to set the type of the tensor.
             type_complex: bool        
                 Specifies if the type of the tensor is meant to be complex
-        Returns:
-            x: Torch tensor
-                The input ensured to be a torch tensor.
+        Returns: 
+            x: numpy array (or original variable if casting failed)                 
+                The input ensured to be a numpy array.
 
-    """
+    """ 
     dtype_setting = __default_np_dtype__
     if type_complex:
         dtype_setting = __default_np_complex_dtype__
@@ -235,45 +235,6 @@ def _ensure_torch(x, type_float: bool = False, type_complex: bool = False):
         except:
             pass
     return False, x
-
-def _ensure_numpy_old(x):
-    """ This function ensures that the variable is a numpy array. 
-    
-        Args: 
-            x: list/numpy array/torch tensor/primitive type that can be contained in a numpy array (e.g., float, int, bool)
-                Input variable.
-        Keyword Args: 
-            None
-        Returns: 
-            x: numpy array (or original variable if casting failed)                 
-                The input ensured to be a numpy array.
-
-    """ 
-    if isinstance(x, _ndarray):
-        return x
-    try:
-        x = x.detach()
-    except:
-        pass
-    
-    try:
-        x = x.cpu()
-    except:
-        pass
-    
-    try:
-        x = x.numpy()
-    except:
-        try:
-            is_torch_now, x = _ensure_torch(x)
-            if is_torch_now: # Avoids infinite loop if for some reason casting fails
-                x = ensure_numpy(x)
-                return x
-            else:
-                return x
-        except:
-            pass
-    return x
 
 def eye(*args, **kwargs):
     """

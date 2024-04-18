@@ -6,7 +6,13 @@ from sys import stderr
 from numba import njit, objmode
 __all__ = ["get_hilbert_torch","hilbert","band_pass_hilbert"]
 
-def get_hilbert_torch(signal, fs:int, pad_size = None, window_mask = None, device = "cpu", return_numba_compatible = False):
+def get_hilbert_torch(
+                        signal, fs : int,
+                        pad_size = None,
+                        window_mask = None,
+                        device = "cpu",
+                        return_numba_compatible = False
+    ):
     """ This function applies the hilbert transformation using pytorch functions. Can be applied to signals of any shapes but only takes in a single impulse response and applies the convolution over the last dimension of the signal (time series should be along dim=-1).
     
         Args: 
@@ -54,7 +60,13 @@ def get_hilbert_torch(signal, fs:int, pad_size = None, window_mask = None, devic
         return mnt.ensure_numpy(analytical_signal)
     return analytical_signal
 
-def hilbert(signal, fs:int, pad_size = None, window_mask = None, return_envelope = False, backend="torch", device = "cpu"):
+def hilbert(
+                signal, fs : int,
+                pad_size = None,
+                window_mask = None,
+                return_envelope = False,
+                backend="torch", device = "cpu"
+    ):
     """ This function applies the hilbert transformation. Can be applied to signals of any shapes but only takes in a single impulse response and applies the convolution over the last dimension of the signal (time series should be along dim=-1).
     
         Args: 
@@ -80,7 +92,7 @@ def hilbert(signal, fs:int, pad_size = None, window_mask = None, return_envelope
 
     if backend == "torch":
         if device == "cuda" and signal.nelement() * signal.element_size() > mnt._check_available_memory():
-            stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now.')
+            stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now. \n')
         analytical_signal = get_hilbert_torch(signal, fs, pad_size = pad_size, window_mask=window_mask, device=device)
     else: # For future use
         raise NotImplementedError('The only backend available for now is "torch".')
@@ -89,7 +101,15 @@ def hilbert(signal, fs:int, pad_size = None, window_mask = None, return_envelope
     return ensure_numpy(analytical_signal)
 
 
-def band_pass_hilbert(signal,fs:int,band,ripple = 60, width = 1.0, keep_pad_percent_for_hilbert = 0.2, return_envelope = False, convolve_type = "auto", backend = "torch", device="cpu", verbose = 1):
+def band_pass_hilbert(
+                        signal, fs : int,
+                        band, ripple = 60, width = 1.0,
+                        keep_pad_percent_for_hilbert = 0.2,
+                        return_envelope = False,
+                        convolve_type = "auto",
+                        backend = "torch", device="cpu",
+                        verbose = 1
+    ):
 
     """ This function applies the band pass filtering then hilbert transform on the full signal. Can be applied to signals of any shapes but only takes in a single impulse response and applies the convolution over the last dimension of the signal (time series should be along dim=-1). Future implementation of a similar function for windowed hilbert transform on full-length filtered signal (e.g., for AEC implementation) will be distinct from this one.
     
@@ -124,10 +144,18 @@ def band_pass_hilbert(signal,fs:int,band,ripple = 60, width = 1.0, keep_pad_perc
                 The analytical signal of the filtered signal.
     """
 
-    filtered_signal, signal_mask = band_pass(signal,fs,band,ripple=ripple,width=width,keep_pad_percent=keep_pad_percent_for_hilbert,convolve_type=convolve_type, return_with_pad=True, backend=backend,device=device, verbose = verbose)
+    filtered_signal, signal_mask = band_pass(
+                                                signal,fs,
+                                                band,ripple=ripple,width=width,
+                                                keep_pad_percent=keep_pad_percent_for_hilbert,
+                                                convolve_type=convolve_type,
+                                                return_with_pad=True,
+                                                backend=backend,device=device,
+                                                verbose = verbose
+                                    )
     if backend == "torch":
         if device == "cuda" and signal.nelement() * signal.element_size() > mnt._check_available_memory():
-            stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now.')
+            stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now. \n')
         signal_mask = ensure_torch(signal_mask==1.0)
         pad_size = mnt.argwhere(signal_mask)[0]//fs
         analytical_signal = get_hilbert_torch(filtered_signal[...,signal_mask], fs, pad_size = pad_size, window_mask=None, device=device)

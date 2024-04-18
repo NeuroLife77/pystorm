@@ -111,7 +111,7 @@ def band_pass_torchaudio(
     edge_percent = 2*iE99 / (signal.shape[-1]/fs)
     if edge_percent>0.1:
         if verbose > 0:
-            stderr.write(f"Data Warning [band_pass()]: Start up and end transients represent {round(edge_percent*100,2)}% of your data.")
+            stderr.write(f"Data Warning [band_pass()]: Start up and end transients represent {round(edge_percent*100,2)}% of your data. \n")
 
     pad_size = win.shape[0]//2
     mean_centered_signal = signal
@@ -204,7 +204,7 @@ def band_pass_scipy(
     edge_percent = 2*iE99 / (signal.shape[-1]/fs)
     if edge_percent>0.1:
         if verbose > 0:
-            stderr.write(f"Data Warning [band_pass()]: Start up and end transients represent {round(edge_percent*100,2)}% of your data.")
+            stderr.write(f"Data Warning [band_pass()]: Start up and end transients represent {round(edge_percent*100,2)}% of your data. \n")
 
     pad_size = win.shape[0]//2
     mean_centered_signal = signal
@@ -295,18 +295,18 @@ def band_pass(
     band = ensure_numpy(band)
     win = get_fir_window(band,ripple,width,fs)
     if (convolve_type == "direct" and len(win)*signal.shape[-1]>1e5 and abs(len(win)-signal.shape[-1])>1e2):
-        stderr.write('Resource Warning [band_pass()]: Using the "direct" method is VERY slow on signals of that size. Perhaps consider using the "fft" convolve_type.')
+        stderr.write('Resource Warning [band_pass()]: Using the "direct" method is VERY slow on signals of that size. Perhaps consider using the "fft" convolve_type. \n')
     total_signal_size = 1
     for dim_size in signal.shape[:-1]:
         total_signal_size *= dim_size
     if backend == "torch":
         if device == "cuda" and signal.nelement() * signal.element_size() > mnt._check_available_memory():
-            stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now.')
+            stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now. \n')
         filtered_signal, filtered_mask = band_pass_torchaudio(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type, device=device,verbose=verbose)
     elif backend =="scipy":
         
-        if convolve_type != "fft" and total_signal_size+signal.shape[-1]//100 > 50:
-            stderr.write('Resource Warning [band_pass()]: Using the "scipy" backend with the "direct" convolve_type is VERY slow when applied on multiple signals at the same time. Perhaps consider using the "fft" convolve_type or the "torch" backend.')
+        if convolve_type == "direct" and total_signal_size+signal.shape[-1]//100 > 50:
+            stderr.write('Resource Warning [band_pass()]: Using the "scipy" backend with the "direct" convolve_type is VERY slow when applied on multiple signals at the same time. Perhaps consider using the "fft" convolve_type or the "torch" backend. \n')
         filtered_signal, filtered_mask = band_pass_scipy(signal,win,fs,return_pad=keep_pad_percent,convolve_type = convolve_type, verbose=verbose)
     else: # For future use
         raise NotImplementedError('The only backends available for now are "torch" and "scipy".')
