@@ -28,7 +28,7 @@ from torch import argwhere as _argwhere
 from torchaudio.functional import convolve as _convolve
 from torchaudio.functional import fftconvolve as _fftconvolve
 from torch import float16,float32,float64
-from torch import set_default_dtype
+from torch import set_default_dtype as _set_default_dtype
 from numpy import ndarray as _ndarray
 from numpy import float32 as _np_float32
 from numpy import float64 as _np_float64
@@ -58,7 +58,7 @@ __default_np_complex_dtype__ = _np_complex128
 __default_dtype_str__ = "float64"
 __default_complex_dtype_str__ = "complex128"
 
-set_default_dtype(__default_dtype__)
+_set_default_dtype(__default_dtype__)
 def set_minitorch_default_dtype(default_type: str = "float64"):
     """ This function allows for specifying a floating point precision (and its matching complex precision). Default is float64 and complex128.
 
@@ -91,7 +91,7 @@ def set_minitorch_default_dtype(default_type: str = "float64"):
         __default_complex_dtype__ = complex128
         __default_dtype_str__ = "float64"
         __default_complex_dtype_str__ = "complex128"
-    set_default_dtype(__default_dtype__)
+    _set_default_dtype(__default_dtype__)
     print("Type Warning [set_minitorch_default_dtype()]: All previously defined tensors or arrays might have incompatible types with the new default, this could cause some functions to crash, especially those that depend on numba.")
     
 

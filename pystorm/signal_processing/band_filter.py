@@ -329,7 +329,6 @@ def _numba_get_firwin(ntaps, centered_band, beta, fs, precision):
     if precision == "float32":
         return _firwin(ntaps, centered_band, window=("kaiser", beta), scale = True, pass_zero=False,fs=fs).astype(mnt._np_float32)
     elif precision == "float64":
-        print(_firwin(ntaps, centered_band, window=("kaiser", beta), scale = True, pass_zero=False,fs=fs).astype(mnt._np_float64).dtype)
         return _firwin(ntaps, centered_band, window=("kaiser", beta), scale = True, pass_zero=False,fs=fs).astype(mnt._np_float64)
     else:
         return _firwin(ntaps, centered_band, window=("kaiser", beta), scale = True, pass_zero=False,fs=fs)
@@ -379,7 +378,6 @@ def _numba_get_fir_window_float32(band, ripple:float, width:float, fs:int):
         centered_band[1] = band[1]+width/2
     with objmode(window='float32[:]'):
         window = _numba_get_firwin(ntaps, centered_band,beta, fs, precision="float32")
-    print(window.dtype)
     return window
 
 
@@ -442,7 +440,6 @@ def _numba_band_pass_torchaudio_float32_1d(signal,win, fs, return_pad = 0.2, con
 def _numba_band_pass_torchaudio_float64_1d(signal,win, fs, return_pad = 0.2, convolve_type = "auto", device="cpu"):
     with objmode(bp_signal='float64[:,:]'):
         bp_signal = band_pass_torchaudio(signal,win, fs, return_pad = return_pad, convolve_type = convolve_type, device = device, verbose = 0, return_numba_compatible=True)
-    print(bp_signal.shape)
     
     return bp_signal[0], bp_signal[1]
 
@@ -544,11 +541,9 @@ def _numba_band_pass_float64_1d(
                 The mask of the signal (specifying the location of the signal within the padded signal) 
     """
     win = _numba_get_fir_window_float64(band,ripple,width,fs)
-    print(signal.shape, win.shape)
     # 1D Torch
     if backend == "torch":
         filtered_signal, filtered_mask = _numba_band_pass_torchaudio_float64_1d(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type, device = device)
-        print(filtered_signal.shape,filtered_mask.shape)
     elif backend == "scipy":
         filtered_signal, filtered_mask = _numba_band_pass_scipy_float64_1d(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type)
     else: # For future use
@@ -697,11 +692,9 @@ def _numba_band_pass_float32_1d(
                 The mask of the signal (specifying the location of the signal within the padded signal) 
     """
     win = _numba_get_fir_window_float32(band,ripple,width,fs)
-    print(signal.shape, win.shape)
     # 1D Torch
     if backend == "torch":
         filtered_signal, filtered_mask = _numba_band_pass_torchaudio_float32_1d(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type, device = device)
-        print(filtered_signal.shape,filtered_mask.shape)
     elif backend == "scipy":
         filtered_signal, filtered_mask = _numba_band_pass_scipy_float32_1d(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type)
     else: # For future use

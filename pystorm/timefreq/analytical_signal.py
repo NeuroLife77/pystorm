@@ -91,6 +91,7 @@ def hilbert(
     """
 
     if backend == "torch":
+        signal = mnt.ensure_torch(signal)
         if device == "cuda" and signal.nelement() * signal.element_size() > mnt._check_available_memory():
             stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now. \n')
         analytical_signal = get_hilbert_torch(signal, fs, pad_size = pad_size, window_mask=window_mask, device=device)
@@ -154,6 +155,7 @@ def band_pass_hilbert(
                                                 verbose = verbose
                                     )
     if backend == "torch":
+        signal = mnt.ensure_torch(signal)
         if device == "cuda" and signal.nelement() * signal.element_size() > mnt._check_available_memory():
             stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now. \n')
         signal_mask = ensure_torch(signal_mask==1.0)
