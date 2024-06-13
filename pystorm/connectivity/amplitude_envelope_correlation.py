@@ -19,7 +19,7 @@ def get_AEC(
                     keep_pad_percent_for_hilbert = 0.2, sliding_window_size = None, overlap = 0.0,
                     convolve_type = "auto",
                     orthogonalize = True, symmetrize = False,
-                    backend = "torch", device = "cpu", verbose = 1,
+                    backend = "torch", device = "cpu", verbose = 1, return_torch = False
     ):
     """ This function computes the amplitude envelope correlation of a signal within a specific band. It can only be applied to signal directly and does not handle projection from sensor to source space. It first band pass filters the whole signal and then windows it (if sliding_window_size is not None) before computing the hilbert transform and the correlation coefficients.
     
@@ -53,8 +53,10 @@ def get_AEC(
                 Specifies the device in which to apply the filtering.
             verbose: int
                 Specifies the verbosity of the function call.
+            return_torch: bool
+                Specifies if the output should be a torch tensor.
         Returns: 
-            connectivity: numpy array of shape (n_signals, n_signals) if not windowed or (Nwin, n_signals, n_signals) if windowed.
+            connectivity: numpy array (or torch tensor) of shape (n_signals, n_signals) if not windowed or (Nwin, n_signals, n_signals) if windowed.
     """
     
 
@@ -63,7 +65,7 @@ def get_AEC(
                                                 band,ripple=ripple,width=width,
                                                 keep_pad_percent=keep_pad_percent_for_hilbert,return_with_pad = True,
                                                 convolve_type=convolve_type,
-                                                backend=backend,device=device,
+                                                backend=backend, device=device,
                                                 verbose=verbose
                                     )
 
@@ -97,6 +99,8 @@ def get_AEC(
             connectivity.append(mnt.ensure_torch(_get_orthogonalized_corr_loop(analytical_signal, symmetrize=symmetrize))[None,...])
         else:
             connectivity.append(mnt.ensure_torch(_get_corr_loop(analytical_signal, symmetrize=symmetrize))[None,...])
+    if return_torch:
+        return mnt.ensure_torch(mnt.cat(connectivity, dim = 0).squeeze())
     return mnt.ensure_numpy(mnt.cat(connectivity, dim = 0).squeeze())
 
 

@@ -23,8 +23,11 @@ from torch import as_tensor as _as_tensor
 from torch import from_numpy as _from_numpy
 from torch import complex64, complex128
 from torch import cos as _cos
+from torch import sin as _sin
 from torch import eye as _eye
 from torch import argwhere as _argwhere
+from torch import logical_or as _logical_or
+from torch import logical_and as _logical_and
 from torchaudio.functional import convolve as _convolve
 from torchaudio.functional import fftconvolve as _fftconvolve
 from torch import float16,float32,float64
@@ -47,7 +50,7 @@ __all__=[
         "linspace","arange","argwhere",
         "cat","zeros","ones","zeros_like","ones_like","eye",
         "as_tensor","from_numpy","ensure_numpy","ensure_torch",
-        "cos","pi",
+        "cos","pi", "logical_and", "logical_or",
         "float16","float32","float64","complex64","complex128","_np_float32","_np_float64",
         "set_minitorch_default_dtype","__default_dtype__","__default_complex_dtype__","_check_available_memory"
 ]
@@ -95,7 +98,7 @@ def set_minitorch_default_dtype(default_type: str = "float64"):
     print("Type Warning [set_minitorch_default_dtype()]: All previously defined tensors or arrays might have incompatible types with the new default, this could cause some functions to crash, especially those that depend on numba.")
     
 
-def ensure_torch(x, type_float: bool = False, type_complex: bool = False):
+def ensure_torch(x, type_float: bool = False, type_complex: bool = False, move_to_CPU = False):
     """ This function ensures that the variable is a torch tensor. It optionally also ensures that it is of the default type (as set by 'set_minitorch_default_dtype').
     
         Args: 
@@ -115,6 +118,8 @@ def ensure_torch(x, type_float: bool = False, type_complex: bool = False):
     if type_complex:
         dtype_setting = __default_complex_dtype__
     if isinstance(x, _Tensor):
+        if move_to_CPU:
+            x = x.cpu()
         if not type_float:
             return x
         try:
@@ -636,6 +641,24 @@ def cos(*args,**kwargs):
     """
     return _cos(*args,**kwargs)
 
+def sin(*args,**kwargs):
+    """
+        
+    sin(input, *, out=None) -> Tensor
+
+    Returns a new tensor with the sine  of the elements of :attr:`input`.
+
+    .. math::
+        \text{out}_{i} = \sin(\text{input}_{i})
+
+    Args:
+        input (Tensor): the input tensor.
+
+    Keyword args:
+        out (Tensor, optional): the output tensor.
+    """
+    return _sin(*args,**kwargs)
+
 
 def fft(*args,**kwargs):
     """  
@@ -844,3 +867,35 @@ def argwhere(*args, **kwargs):
 
     """
     return _argwhere(*args,**kwargs)
+
+def logical_and(*args,**kwargs):
+    """
+    logical_and(input, other, *, out=None) -> Tensor
+
+    Computes the element-wise logical AND of the given input tensors. Zeros are treated as ``False`` and nonzeros are
+    treated as ``True``.
+
+    Args:
+        input (Tensor): the input tensor.
+        other (Tensor): the tensor to compute AND with
+
+    Keyword args:
+        out (Tensor, optional): the output tensor.
+    """
+    return _logical_and(*args,**kwargs)
+
+def logical_or(*args,**kwargs):
+    """
+    logical_or(input, other, *, out=None) -> Tensor
+
+    Computes the element-wise logical OR of the given input tensors. Zeros are treated as ``False`` and nonzeros are
+    treated as ``True``.
+
+    Args:
+        input (Tensor): the input tensor.
+        other (Tensor): the tensor to compute OR with
+
+    Keyword args:
+        out (Tensor, optional): the output tensor.
+    """
+    return _logical_or(*args,**kwargs)

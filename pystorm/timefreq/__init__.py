@@ -12,7 +12,8 @@ In general it is not necessary to import through this module, but if you want to
 
 __all__ = [
     "get_hilbert_torch","hilbert","band_pass_hilbert",
-    "welch_psd_source_space", "welch_psd_sensor_space"
+    "welch_psd_source_space", "welch_psd_sensor_space",  "welch_psd_time_resolved_source_space", "welch_psd_time_resolved_sensor_space", "get_fft_torch"
 ]
 from .welch_psd import *
 from .analytical_signal import *
+from .fft import *

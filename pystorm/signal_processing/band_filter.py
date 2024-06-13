@@ -64,7 +64,7 @@ def band_pass_torchaudio(
                             signal, win, fs:int,
                             return_pad = 0.2,
                             convolve_type = "auto", device="cpu",
-                            verbose = 1, return_numba_compatible = False
+                            verbose = 1, return_numba_compatible = False, return_torch = False, return_on_CPU = True
     ):
 
     """ This function applies the band pass filtering by convolving the signal and the impulse response using torchaudio's convolve or fftconvolve functions. Can be applied to signals of any shapes but only takes in a single impulse response and applies the convolution over the last dimension of the signal (time series should be along dim=-1).
@@ -87,10 +87,14 @@ def band_pass_torchaudio(
                 Specifies the verbosity of the function call.
             return_numba_compatible: bool
                 Specifies whether to combine the (possibly still padded) filtered signal and the mask of the signal (specifying the location of the signal within the padded signal) into a single array which is required when calling this function through a numba-compiled function. [useful now]
+            return_torch: bool
+                Specifies if the output should be a torch tensor.
+            return_on_CPU: bool
+                Specifies is the output should be moved to CPU (useful only on torch backend and using GPU as device)
         Returns: 
-            filtered_signal: numpy array                       
+            filtered_signal: numpy array (or torch tensor)                  
                 The (possibly still padded) filtered signal.
-            signal_mask: numpy array
+            signal_mask: numpy array (or torch tensor) 
                 The mask of the signal (specifying the location of the signal within the padded signal) 
     """
 
@@ -152,14 +156,17 @@ def band_pass_torchaudio(
         return_val = mnt.cat([filtered_signal,signal_mask.unsqueeze(0)], dim = 0).cpu()
         return ensure_numpy(return_val)
     else:
+        if return_torch:
+            return ensure_torch(filtered_signal, move_to_CPU = return_on_CPU), ensure_torch(signal_mask, move_to_CPU = return_on_CPU)
         return ensure_numpy(filtered_signal), ensure_numpy(signal_mask)
+    
 
 ## TODO Rewrite the code for padding to avoid casting to torch tensors and back to numpy array before convolving
 def band_pass_scipy(
                             signal, win, fs:int,
                             return_pad = 0.2,
                             convolve_type = "auto",
-                            verbose = 1, return_numba_compatible = False
+                            verbose = 1, return_numba_compatible = False, return_torch = False
     ):
 
     """ This function applies the band pass filtering by convolving the signal and the impulse response using torchaudio's convolve or fftconvolve functions. Can be applied to signals of any shapes but only takes in a single impulse response and applies the convolution over the last dimension of the signal (time series should be along dim=-1).
@@ -182,10 +189,12 @@ def band_pass_scipy(
                 Specifies the verbosity of the function call.
             return_numba_compatible: bool
                 Specifies whether to combine the (possibly still padded) filtered signal and the mask of the signal (specifying the location of the signal within the padded signal) into a single array which is required when calling this function through a numba-compiled function. [not useful yet]
+            return_torch: bool
+                Specifies if the output should be a torch tensor.
         Returns: 
-            filtered_signal: numpy array                       
+            filtered_signal: numpy array (or torch tensor)             
                 The (possibly still padded) filtered signal.
-            signal_mask: numpy array
+            signal_mask: numpy array (or torch tensor) 
                 The mask of the signal (specifying the location of the signal within the padded signal) 
     """
     device = "cpu"
@@ -247,6 +256,8 @@ def band_pass_scipy(
         return_val = mnt.cat([filtered_signal,signal_mask.unsqueeze(0)], dim = 0).cpu()
         return ensure_numpy(return_val)
     else:
+        if return_torch:
+            return ensure_torch(filtered_signal), ensure_torch(signal_mask)
         return ensure_numpy(filtered_signal), ensure_numpy(signal_mask)
 
 def band_pass(
@@ -254,7 +265,7 @@ def band_pass(
                 ripple = 60.0, width = 1.0, 
                 keep_pad_percent = 0.2,
                 convolve_type = "auto",  return_with_pad = False, 
-                backend = "torch", device="cpu", verbose = 1
+                backend = "torch", device="cpu", verbose = 1, return_torch = False, return_on_CPU = True
     ):
 
     """ This function applies the band pass filtering by convolving the signal and the impulse response. Can be applied to signals of any shapes (currently, might vary with different backends) but only takes in a single impulse response and applies the convolution over the last dimension of the signal (time series should be along dim=-1).
@@ -285,13 +296,17 @@ def band_pass(
                 Specifies the device in which to apply the filtering.
             verbose: int
                 Specifies the verbosity of the function call.
+            return_torch: bool
+                Specifies if the output should be a torch tensor.
+            return_on_CPU: bool
+                Specifies is the output should be moved to CPU (useful only on torch backend and using GPU as device)
         Returns: 
-            filtered_signal: numpy array                       
+            filtered_signal: numpy array (or torch tensor)          
                 The (possibly still padded) filtered signal.
-            signal_mask: numpy array
+            signal_mask: numpy array (or torch tensor)
                 The mask of the signal (specifying the location of the signal within the padded signal) 
     """
-
+    
     band = ensure_numpy(band)
     win = get_fir_window(band,ripple,width,fs)
     if (convolve_type == "direct" and len(win)*signal.shape[-1]>1e5 and abs(len(win)-signal.shape[-1])>1e2):
@@ -300,9 +315,10 @@ def band_pass(
     for dim_size in signal.shape[:-1]:
         total_signal_size *= dim_size
     if backend == "torch":
+        signal = ensure_torch(signal)
         if device == "cuda" and signal.nelement() * signal.element_size() > mnt._check_available_memory():
             stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now. \n')
-        filtered_signal, filtered_mask = band_pass_torchaudio(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type, device=device,verbose=verbose)
+        filtered_signal, filtered_mask = band_pass_torchaudio(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type, device=device,verbose=verbose, return_torch=True, return_on_CPU=False)
     elif backend =="scipy":
         
         if convolve_type == "direct" and total_signal_size+signal.shape[-1]//100 > 50:
@@ -311,9 +327,13 @@ def band_pass(
     else: # For future use
         raise NotImplementedError('The only backends available for now are "torch" and "scipy".')
     if return_with_pad:
-        return filtered_signal, filtered_mask
+        if return_torch:
+            return ensure_torch(filtered_signal, move_to_CPU = return_on_CPU), ensure_torch(filtered_mask, move_to_CPU = return_on_CPU)
+        return ensure_numpy(filtered_signal), ensure_numpy(filtered_mask)
     else:
-        return filtered_signal[...,filtered_mask==1]
+        if return_torch:
+            return ensure_torch(filtered_signal[...,filtered_mask==1], move_to_CPU = return_on_CPU)
+        return ensure_numpy(filtered_signal[...,filtered_mask==1])
 
 
 
