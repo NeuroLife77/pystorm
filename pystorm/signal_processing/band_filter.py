@@ -161,7 +161,7 @@ def band_pass_torchaudio(
         return ensure_numpy(filtered_signal), ensure_numpy(signal_mask)
     
 
-## TODO Rewrite the code for padding to avoid casting to torch tensors and back to numpy array before convolving
+## TODO Rewrite the code, there seems to be an issue with the filtering here.
 def band_pass_scipy(
                             signal, win, fs:int,
                             return_pad = 0.2,
@@ -291,7 +291,7 @@ def band_pass(
             return_with_pad: bool
                 Specifies whether to return the (padded) signal with its mask or to return the (unpadded) signal directly.
             backend: str
-                Specifies which backend to use. [Currently only 'torch' is available.]
+                Specifies which backend to use. [Currently 'torch' and 'scipy' are available.]
             device: str
                 Specifies the device in which to apply the filtering.
             verbose: int
@@ -319,13 +319,14 @@ def band_pass(
         if device == "cuda" and signal.nelement() * signal.element_size() > mnt._check_available_memory():
             stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now. \n')
         filtered_signal, filtered_mask = band_pass_torchaudio(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type, device=device,verbose=verbose, return_torch=True, return_on_CPU=False)
-    elif backend =="scipy":
+    # elif backend =="scipy":
         
-        if convolve_type == "direct" and total_signal_size+signal.shape[-1]//100 > 50:
-            stderr.write('Resource Warning [band_pass()]: Using the "scipy" backend with the "direct" convolve_type is VERY slow when applied on multiple signals at the same time. Perhaps consider using the "fft" convolve_type or the "torch" backend. \n')
-        filtered_signal, filtered_mask = band_pass_scipy(signal,win,fs,return_pad=keep_pad_percent,convolve_type = convolve_type, verbose=verbose)
+    #     if convolve_type == "direct" and total_signal_size+signal.shape[-1]//100 > 50:
+    #         stderr.write('Resource Warning [band_pass()]: Using the "scipy" backend with the "direct" convolve_type is VERY slow when applied on multiple signals at the same time. Perhaps consider using the "fft" convolve_type or the "torch" backend. \n')
+    #     filtered_signal, filtered_mask = band_pass_scipy(signal,win,fs,return_pad=keep_pad_percent,convolve_type = convolve_type, verbose=verbose)
     else: # For future use
-        raise NotImplementedError('The only backends available for now are "torch" and "scipy".')
+        #raise NotImplementedError('The only backends available for now are "torch" and "scipy".')
+        raise NotImplementedError('The only backends available for now is "torch".')
     if return_with_pad:
         if return_torch:
             return ensure_torch(filtered_signal, move_to_CPU = return_on_CPU), ensure_torch(filtered_mask, move_to_CPU = return_on_CPU)

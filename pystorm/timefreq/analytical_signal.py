@@ -4,7 +4,15 @@ import pystorm.signal_processing.band_filter as bf
 from pystorm import minitorch as mnt
 from sys import stderr 
 from numba import njit, objmode
-__all__ = ["get_hilbert_torch","hilbert","band_pass_hilbert"]
+from scipy.fft import fft as _spfft
+from scipy.fft import ifft as _spifft
+from scipy.fft import fftfreq as _spfftfreq
+from numpy import concatenate as _npcat
+from numpy import zeros as _npzeros
+from numpy import arange as _nparange
+from numpy import abs as _npabs
+
+__all__ = ["get_hilbert_torch","get_hilbert_scipy","hilbert","band_pass_hilbert","get_multiple_band_pass_hilbert"]
 
 def get_hilbert_torch(
                         signal, fs : int,
@@ -65,6 +73,60 @@ def get_hilbert_torch(
         return mnt.ensure_numpy(analytical_signal)
     return mnt.ensure_torch(analytical_signal, move_to_CPU = return_on_CPU)
 
+def get_hilbert_scipy(
+                        signal, fs : int,
+                        pad_size = None,
+                        window_mask = None,
+                        return_numba_compatible = False,
+                        return_torch = False
+    ):
+    """ This function applies the hilbert transformation using scipy functions. Can be applied to signals of any shapes but only applies the transform over the last dimension of the signal (time series should be along dim=-1).
+    
+        Args: 
+            signal: list/numpy array/torch tensor 
+                The signal to filter
+            fs : int
+                The signal's sampling rate.
+        Keyword Args: 
+            pad_size : float
+                The size (in seconds) of the padding to add before applying the hilbert transform. 
+            window_mask : str
+                Specifies which part of the input signal to transform. [Only useful when applying windowed transform on signal that was previously filtered on its full length.]
+            return_numba_compatible: bool
+                Specifies if the signal should be returned as numpy array (required for numba)
+            return_torch: bool
+                Specifies if the output should be a torch tensor.
+        Returns: 
+            analytical_signal: numpy array (or torch tensor)                
+                The analytical signal.
+    """
+
+    signal = ensure_numpy(signal)
+    
+    if window_mask is not None: # Foreshadowing Amplitude Envelope Correlation implementation
+        window_mask = ensure_numpy(window_mask)
+        windowed_signal = signal[..., window_mask]
+    else:
+        windowed_signal = signal
+    
+    if pad_size is not None:
+        pad_size = int(pad_size*fs)
+        padded_signal = _npcat([_npzeros((*signal.shape[:-1],pad_size)),windowed_signal,_npzeros((*signal.shape[:-1],pad_size))], axis = -1)
+    else:
+        padded_signal = windowed_signal
+        pad_size = 0
+    
+    recover_signal_mask = _nparange(windowed_signal.shape[-1])+pad_size
+    freqs = _spfftfreq(padded_signal.shape[-1],d=1/fs)
+    signal_fft = _spfft(padded_signal)
+    signal_fft[...,freqs<0] = 0
+    signal_fft[...,freqs>0] = signal_fft[...,freqs>0]*2
+    analytical_signal = _spifft(signal_fft)
+    analytical_signal = analytical_signal[...,recover_signal_mask]
+    if return_numba_compatible or not return_torch:
+        return ensure_numpy(analytical_signal)
+    return ensure_torch(analytical_signal)
+
 def hilbert(
                 signal, fs : int,
                 pad_size = None,
@@ -87,7 +149,7 @@ def hilbert(
             return_envelope: bool
                 Specifies whether to return only then envelope of the analytical signal.
             backend: str
-                Specifies which backend to use. [Currently only 'torch' is available.]
+                Specifies which backend to use. [Currently 'torch' and 'scipy' are available.]
             device: str
                 Specifies the device in which to apply the filtering.
             return_torch: bool
@@ -105,15 +167,14 @@ def hilbert(
             stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now. \n')
         analytical_signal = get_hilbert_torch(signal, fs, pad_size = pad_size, window_mask=window_mask, device=device, return_torch=_return_torch_here, return_on_CPU=False)
     else: # For future use
-        raise NotImplementedError('The only backend available for now is "torch".')
+        analytical_signal = get_hilbert_scipy(signal, fs, pad_size = pad_size, window_mask=window_mask, return_torch=_return_torch_here)
     if return_envelope:
         if return_torch:
-            return ensure_torch(analytical_signal.abs(), move_to_CPU = return_on_CPU)
-        return ensure_numpy(analytical_signal.abs())
+            return ensure_torch(analytical_signal, move_to_CPU = return_on_CPU).abs()
+        return _npabs(ensure_numpy(analytical_signal))
     if return_torch:
             return ensure_torch(analytical_signal, move_to_CPU = return_on_CPU)
     return ensure_numpy(analytical_signal)
-
 
 def band_pass_hilbert(
                         signal, fs : int,
@@ -151,7 +212,7 @@ def band_pass_hilbert(
             return_filtered_signal: bool
                 Specifies if the filtered signal should be returned too
             backend: str
-                Specifies which backend to use. [Currently only 'torch' is available.]
+                Specifies which backend to use. [Currently 'torch' and 'scipy' are available.]
             device: str
                 Specifies the device in which to apply the filtering.
             verbose: int
@@ -173,7 +234,7 @@ def band_pass_hilbert(
                                                 keep_pad_percent=keep_pad_percent_for_hilbert,
                                                 convolve_type=convolve_type,
                                                 return_with_pad=True,
-                                                backend=backend,device=device,
+                                                backend="torch",device=device, # Forcince torch backend for band_pass until scipy version is fixed
                                                 verbose = verbose, return_torch=_return_torch_here, return_on_CPU = False
                                     )
     if backend == "torch":
@@ -184,26 +245,114 @@ def band_pass_hilbert(
         pad_size = mnt.argwhere(signal_mask)[0]//fs
         analytical_signal = get_hilbert_torch(filtered_signal[...,signal_mask], fs, pad_size = pad_size, window_mask=None, device=device, return_torch=_return_torch_here, return_on_CPU = return_on_CPU)
     else: # For future use
-        raise NotImplementedError('The only backend available for now is "torch".')
+        signal_mask = ensure_torch(signal_mask==1.0)
+        pad_size = mnt.argwhere(signal_mask)[0]//fs
+        analytical_signal = get_hilbert_scipy(signal, fs, pad_size = pad_size, window_mask=None, return_torch=True)
 
     
     if return_envelope and return_torch and not return_filtered_signal:
-            return ensure_torch(analytical_signal.abs(), move_to_CPU = return_on_CPU)
+            return ensure_torch(analytical_signal, move_to_CPU = return_on_CPU).abs()
     if return_envelope and not return_torch and not return_filtered_signal:
-        return ensure_numpy(analytical_signal.abs())
+        return _npabs(ensure_numpy(analytical_signal))
     if not return_envelope and return_torch and not return_filtered_signal:
             return ensure_torch(analytical_signal, move_to_CPU = return_on_CPU)
     if not return_envelope and not return_torch and not return_filtered_signal:
         return ensure_numpy(analytical_signal)
 
     if return_envelope and return_torch:
-            return ensure_torch(analytical_signal.abs(), move_to_CPU = return_on_CPU), ensure_torch(filtered_signal, move_to_CPU = return_on_CPU), ensure_torch(signal_mask, move_to_CPU = return_on_CPU)
+            return ensure_torch(analytical_signal, move_to_CPU = return_on_CPU).abs(), ensure_torch(filtered_signal, move_to_CPU = return_on_CPU), ensure_torch(signal_mask, move_to_CPU = return_on_CPU)
     if return_envelope and not return_torch:
-        return ensure_numpy(analytical_signal.abs()), ensure_numpy(filtered_signal), ensure_numpy(signal_mask)
+        return _npabs(ensure_numpy(analytical_signal)), ensure_numpy(filtered_signal), ensure_numpy(signal_mask)
     if not return_envelope and return_torch:
             return ensure_torch(analytical_signal, move_to_CPU = return_on_CPU), ensure_torch(filtered_signal, move_to_CPU = return_on_CPU), ensure_torch(signal_mask, move_to_CPU = return_on_CPU)
     if not return_envelope and not return_torch:
         return ensure_numpy(analytical_signal), ensure_numpy(filtered_signal), ensure_numpy(signal_mask)
+
+def get_multiple_band_pass_hilbert(
+                        signal, fs : int,
+                        bands, ripple = 60, width = 1.0,
+                        keep_pad_percent_for_hilbert = 0.2,
+                        return_envelope = False,
+                        convolve_type = "auto",
+                        return_filtered_signal = False,
+                        backend = "torch", device="cpu",
+                        verbose = 1, return_torch = False, return_on_CPU = True
+    ):
+
+    """ This function is a wrapper for applying the band pass filtering then hilbert transform on multiple bands. Can be applied to signals of any shapes but only takes in a single impulse response and applies the convolution over the last dimension of the signal (time series should be along dim=-1). 
+    
+        Args: 
+            signal: list/numpy array/torch tensor 
+                The signal to filter
+            fs : int
+                The signal's sampling rate.
+            bands: list/numpy array/torch tensor 
+                Contains a list of frequency ranges of each filters.
+        Keyword Args: 
+            ripple : float
+                Positive number specifying maximum ripple in passband (dB) and minimum
+                ripple in stopband.
+            width : float
+                Width of transition region (normalized so that 1 corresponds to pi
+                radians / sample).
+            keep_pad_percent_for_hilbert : float
+                The percentage of the padding to keep in the returned filtered signal.
+            return_envelope: bool
+                Specifies whether to return only then envelope of the analytical signal.
+            convolve_type : str
+                Specifies which method to use for convolution.
+            return_filtered_signal: bool
+                Specifies if the filtered signal should be returned too
+            backend: str
+                Specifies which backend to use. [Currently 'torch' and 'scipy' are available.]
+            device: str
+                Specifies the device in which to apply the filtering.
+            verbose: int
+                Specifies the verbosity of the function call.
+            return_torch: bool
+                Specifies if the output should be a torch tensor.
+            return_on_CPU: bool
+                Specifies is the output should be moved to CPU (useful only on torch backend and using GPU as device)
+        Returns: 
+            filtered_signals: numpy array (or torch tensor)  
+                The (possibly still padded) filtered signals in each bands: if return_filtered_signal=True
+            signal_mask: numpy array (or torch tensor)  
+                The mask of the signals (specifying the location of the signal within the padded signal): if return_filtered_signal=True
+            analytical_signal: numpy array (or torch tensor)               
+                The analytical signal of the filtered signals in each bands
+    """
+    filtered_signals = []
+    signal_masks = []
+    analytical_signals = []
+    for band in bands:
+        output =  band_pass_hilbert(
+                    signal,fs,band,
+                    ripple = ripple, width = width, 
+                    keep_pad_percent_for_hilbert = keep_pad_percent_for_hilbert,
+                    convolve_type = convolve_type,  return_filtered_signal=return_filtered_signal, return_envelope = return_envelope, 
+                    backend = backend, device=device, verbose = verbose, return_torch = True, return_on_CPU = False
+        )
+        if return_filtered_signal:
+            analytical_signal, filtered_signal, signal_mask = output
+            filtered_signals.append(filtered_signal.unsqueeze(0))
+            signal_masks.append(signal_mask.unsqueeze(0))
+        else:
+            analytical_signal = output
+        analytical_signals.append(analytical_signal.unsqueeze(0))
+        
+    if return_filtered_signal:
+        filtered_signals = mnt.cat(filtered_signals, dim = 0)
+        signal_masks = mnt.cat(signal_masks, dim = 0)
+    analytical_signals = mnt.cat(analytical_signals, dim = 0)
+    
+    if return_torch and not return_filtered_signal:
+            return ensure_torch(analytical_signals, move_to_CPU = return_on_CPU)
+    if not return_torch and not return_filtered_signal:
+        return ensure_numpy(analytical_signals)
+    if return_torch:
+            return ensure_torch(analytical_signals, move_to_CPU = return_on_CPU), ensure_torch(filtered_signals, move_to_CPU = return_on_CPU), ensure_torch(signal_masks, move_to_CPU = return_on_CPU)
+    if not return_torch:
+        return ensure_numpy(analytical_signals), ensure_numpy(filtered_signals), ensure_numpy(signal_masks)
 
 
 ########################################- Numba compatible functions [Not used yet] - ########################################
