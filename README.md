@@ -1,3 +1,4 @@
+![Pystorm logo](https://github.com/NeuroLife77/pystorm/blob/main/pystorm_logo.png?raw=true)
 # Pystorm
 Python implementation of various functions from the [Brainstorm](https://neuroimage.usc.edu/brainstorm/) [repository](https://github.com/brainstorm-tools/brainstorm3), often written for GPU compatibility and/or jit compilation.
 
