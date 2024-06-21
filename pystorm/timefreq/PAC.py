@@ -23,7 +23,7 @@ def pac(
     percentage_of_total_band_power_threshold_envelope = 0.0000125,
     n_sur = 500,
     n_blocks = 5,
-    flip_signal_signs = False,
+    signal_flip_mask = None,
     backend = 'torch',
     device = 'cpu',
     return_torch = False,
@@ -46,13 +46,13 @@ def pac(
                 Specifies the width of the bins for fA grid search
             fA_bin_edges: list/numpy array/torch tensor 
                 Specifies the bounds of the fA grid search
-            range_of_fP_search: 
+            range_of_fP_search: list/numpy array/torch tensor 
                 Specifies the bounds of fP (used as band for band_pass)
-            window_length: 
+            window_length: float
                 Specifies the length (in seconds) of the sliding windows (if tPAC)
             n_win: int
                 Specifies the number of sliding windows (if tPAC), will default to a computed max_n_win if 'None'
-            overlap: 
+            overlap: float
                 Specifies the overlap (between 0 and 1) of the sliding windows (if tPAC)
             ripple : float
                 Positive number specifying maximum ripple in passband (dB) and minimum ripple in stopband.
@@ -92,8 +92,8 @@ def pac(
                     -sPAC['z_score']: z-score values wrt surrogate (if used)
     """
     signals = mnt.ensure_torch(signal).to(device)
-    if flip_signal_signs:
-        signals = pst.align_signals_with_sign_flip(signals, return_torch=True, device = device, return_on_CPU = False)
+    if signal_flip_mask is not None:
+        signals = signals * mnt.ensure_torch(signal_flip_mask).to(device).unsqueeze(-1)
     if len(signals.shape) == 1:
         signals = signals.unsqueeze(0)
 
