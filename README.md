@@ -25,7 +25,8 @@ or
 - FFT (only implemented with pytorch backend) that returns either the complex values or the power and phase values.
 - Band-pass filtering (equivalent to ["bst-hfilter-2019"](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/math/bst_bandpass_hfilter.m))
 - Hilbert transform
-- Amplitude envelope correlation (equivalent to ["penv" and "oenv"](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/connectivity/bst_henv.m)). Can only be applied on signal directly for now: does not work with (sensor, kernel) input.
+- Amplitude envelope correlation (equivalent to ["penv" and "oenv"](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/connectivity/bst_henv.m)). Also includes an option to apply it on source data directly or parcellated data (see extract parcel time series section for details)
+- Extract parcel time series from the sensor data and the imaging kernel: requires the imaging kernel to be separated per parcel as a list of N matrices (1 per parcel) that only contain the rows of the sources within the parcels. It can be applied on either the mean of the sources time course within each parcel or on a PCA-based dimensionality reduction of the signal. 
 - Sign flip based on cortical surface orientations for parcellated source signal
 - PAC and [tPAC](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/process/functions/process_pac_dynamic.m) (time-resolved Phase-Amplitude Coupling) with [surrogate data z-score](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/process/functions/process_pac_dynamic_sur2.m)
 

@@ -11,6 +11,7 @@ Minitorch is already available through pystorm import (along with its mini-name 
 __all__=[
         "minitorch",
         "time_series_utils",
-        "get_sign_flip_mask"
+        "get_sign_flip_mask",
+        "get_scout_time_series",
 ]
 from .time_series_utils import *
