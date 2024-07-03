@@ -82,8 +82,11 @@ def get_scout_time_series(kernels, signal, collapse_function, device = "cpu", **
     elif collapse_function == "pca":
         if "reference_PC" in kwargs:
             reference_PC = mnt.ensure_torch(kwargs["reference_PC"]).to(device)
-        else:  
-            reference_PC = mnt.ones(kernels[0].shape[0], device = device)
+        else:
+            try:
+                reference_PC = mnt.ones(kernels.shape[0], device = device)
+            except:
+                reference_PC = mnt.ones(len(kernels), device = device)
         
         parcellated_signal = mnt.zeros(len(kernels),signal_compute.shape[-1], device = device)
         explained =  mnt.zeros(len(kernels))
