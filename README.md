@@ -31,6 +31,7 @@ Currently experiencing issues with the scipy backend, so most new functions are 
 - Extract parcel time series from the sensor data and the imaging kernel: requires the imaging kernel to be separated per parcel as a list of N matrices (1 per parcel) that only contain the rows of the sources within the parcels. It can be applied on either the mean of the sources time course within each parcel or on a PCA-based dimensionality reduction of the signal. 
 - Sign flip based on cortical surface orientations for parcellated source signal
 - PAC and [tPAC](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/process/functions/process_pac_dynamic.m) (time-resolved Phase-Amplitude Coupling) with [surrogate data z-score](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/process/functions/process_pac_dynamic_sur2.m)
+- Morlet wavelet coefficients. Only implemented with pytorch backend and does not speed up the convolution with FFT.
 
 ### Coming soon
 - TBD

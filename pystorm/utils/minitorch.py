@@ -40,7 +40,8 @@ from numpy import complex128 as _np_complex128
 from numpy import array as _np_array
 from torch import Tensor as _Tensor
 from torch.cuda import mem_get_info as _mem_get_info
-
+from torch import set_num_threads as _set_num_threads
+from torch import get_num_threads as _get_num_threads
 def _check_available_memory():
     return _mem_get_info()[0]
 
@@ -52,7 +53,8 @@ __all__=[
         "as_tensor","from_numpy","ensure_numpy","ensure_torch",
         "cos","pi", "logical_and", "logical_or",
         "float16","float32","float64","complex64","complex128","_np_float32","_np_float64",
-        "set_minitorch_default_dtype","__default_dtype__","__default_complex_dtype__","_check_available_memory"
+        "set_minitorch_default_dtype","__default_dtype__","__default_complex_dtype__","_check_available_memory",
+        "get_number_of_pytorch_threads","set_number_of_pytorch_threads",
 ]
 __default_dtype__ = float64
 __default_complex_dtype__ = complex128
@@ -63,7 +65,7 @@ __default_complex_dtype_str__ = "complex128"
 
 _set_default_dtype(__default_dtype__)
 def set_minitorch_default_dtype(default_type: str = "float64"):
-    """ This function allows for specifying a floating point precision (and its matching complex precision). Default is float64 and complex128.
+    """ This function allows for specifying a floating point precision (and its matching complex precision). Default is float64 and complex128. If in a multiprocessing setting, such as joblib, need to be called locally within each process.
 
         Args: 
             None
@@ -97,6 +99,26 @@ def set_minitorch_default_dtype(default_type: str = "float64"):
     _set_default_dtype(__default_dtype__)
     print("Type Warning [set_minitorch_default_dtype()]: All previously defined tensors or arrays might have incompatible types with the new default, this could cause some functions to crash, especially those that depend on numba.")
     
+
+def set_number_of_pytorch_threads(num_threads):
+    """ This function sets the number of threads used in the pytorch backend (if in a multiprocessing setting, such as joblib, need to be called locally within each process).
+    
+        Args: 
+            num_threads: int
+                Number of threads to limit the backend.
+    """
+    _set_num_threads(num_threads)
+
+def get_number_of_pytorch_threads(print_num = False):
+    """ This function returns the number of threads used in the pytorch backend (if in a multiprocessing setting, such as joblib, need to be called locally within each process).
+    
+        Args: 
+            print_num: bool
+                Defines if the number of threads will be printed or just returned.
+    """
+    if print_num:
+        print(f"Number of threads: {_get_num_threads()}")
+    return _get_num_threads()
 
 def ensure_torch(x, type_float: bool = False, type_complex: bool = False, move_to_CPU = False):
     """ This function ensures that the variable is a torch tensor. It optionally also ensures that it is of the default type (as set by 'set_minitorch_default_dtype').

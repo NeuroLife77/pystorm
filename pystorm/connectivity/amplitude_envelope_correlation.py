@@ -88,7 +88,7 @@ def get_AEC(
         time_sequence = mnt.arange(0,Lwin, dtype = int)
     connectivity = []
     for i in range(Nwin):
-        iTimes =  time_sequence + (i - 1)*(Lwin-Loverlap)
+        iTimes =  time_sequence + i*(Lwin-Loverlap)
         analytical_signal = _hilbert(
                                         unpadded_signal, fs,
                                         pad_size = pad_size,
@@ -198,28 +198,30 @@ def get_source_AEC(
                     -Otherwise it should be a list of kernels (or an array of objects containing kernels) of length k with each element in the list being a matrix of shape [nSource_in_parcel, nSensors]. Given the variable number of sources per parcel it cannot be a single tensor/array of numbers. It can be a list of matrices or it can be a tensor/array of objects which elements are the matrices.
             signal: list/numpy array/torch tensor 
                 The signal to filter
-            fs : int
+            fs: int
                 The signal's sampling rate.
             band: list/numpy array/torch tensor 
                 Contains the frequency range of the band over which to compute the amplitude envelope correlation.
         Keyword Args: 
-            ripple : float
+            ripple: float
                 Positive number specifying maximum ripple in passband (dB) and minimum
                 ripple in stopband.
-            width : float
+            width: float
                 Width of transition region (normalized so that 1 corresponds to pi
                 radians / sample).
-            keep_pad_percent_for_hilbert : float
+            collapse_function: str
+                Name of the function used to collapse the sources into parcels.
+            keep_pad_percent_for_hilbert: float
                 The percentage of size of the the band pass padding to use when computing hilbert transform (default is 0.2, same as internally used in brainstorm) 
-            sliding_window_size : float 
+            sliding_window_size: float 
                 Size of the sliding window (in seconds)
-            overlap : float
+            overlap: float
                 Overlap percentage between windows (in 0-1 range)
-            convolve_type : str
+            convolve_type: str
                 Specifies which method to use for convolution.
-            orthogonalize : bool
+            orthogonalize: bool
                 Whether to use 'oenv' (when set to True) or 'henv' (when set to False) to compute the AEC. While this operation is numba compiled 'oenv' take significantly longer to run.
-            symmetrize : bool
+            symmetrize: bool
                 Whether to return the symmetric matrix (R + R.T)/2 instead of R.
             device: str
                 Specifies the device in which to apply the filtering.

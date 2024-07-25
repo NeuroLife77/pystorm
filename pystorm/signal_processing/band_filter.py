@@ -291,7 +291,7 @@ def band_pass(
             return_with_pad: bool
                 Specifies whether to return the (padded) signal with its mask or to return the (unpadded) signal directly.
             backend: str
-                Specifies which backend to use. [Currently 'torch' and 'scipy' are available.]
+                Specifies which backend to use. [Currently 'torch' is available.]
             device: str
                 Specifies the device in which to apply the filtering.
             verbose: int
@@ -316,7 +316,7 @@ def band_pass(
         total_signal_size *= dim_size
     if backend == "torch":
         signal = ensure_torch(signal)
-        if device == "cuda" and signal.nelement() * signal.element_size() > mnt._check_available_memory():
+        if device != "cpu" and signal.nelement() * signal.element_size() > mnt._check_available_memory():
             stderr.write(f'Resource Warning [band_pass()]: Your signal (of size {signal.nelement() * signal.element_size()*1e-6}MB) is too big to be moved to your GPU. Consider splitting the job into blocks. The process will likely crash now. \n')
         filtered_signal, filtered_mask = band_pass_torchaudio(signal,win,fs,return_pad=keep_pad_percent, convolve_type = convolve_type, device=device,verbose=verbose, return_torch=True, return_on_CPU=False)
     # elif backend =="scipy":

@@ -84,11 +84,12 @@ def pac(
                 //Note: All arrays will ALWAYS have the shape (num_winows, num_fA_bins, num_signals, ...) irrespective of the arguments passed to the function//
 
                 Dictionary content breakdown:
+                    -sPAC['fA_values']: The mean value of the each fA bin used within the grid search.
                     -sPAC['PAC']: Coupling coefficients
                     -sPAC['phase']: phase
-                    -sPAC['fP']: the fP value for each fA
+                    -sPAC['fP']: the fP value for each fA bin
                     -sPAC['PAC_complex']: Coupling values in the complex form
-                    -sPAC['MaxPAC_index']: Index of the fA with max PAC coefficient, it has the shape (num_winows, 1, num_signals, ...) to enable easy 'take_along_axis' or 'take_along_dim'
+                    -sPAC['MaxPAC_index']: Index of the fA bin with max PAC coefficient, it has the shape (num_winows, 1, num_signals, ...) to enable easy 'take_along_axis' or 'take_along_dim'
                     -sPAC['z_score']: z-score values wrt surrogate (if used)
     """
     signals = mnt.ensure_torch(signal).to(device)
@@ -146,6 +147,7 @@ def pac(
 
     max_dist_between_peaks = max(1.5/(window_size/fs), 1.5)
     sPAC = {}
+    sPAC['fA_values'] = bands.mean(-1)
     sPAC['PAC'] = mnt.zeros(n_win,bands.shape[0],len(peaks_of_signals[0]))
     sPAC['phase'] = mnt.zeros(n_win,bands.shape[0],len(peaks_of_signals[0]))
     sPAC['fP'] = mnt.zeros(n_win,bands.shape[0],len(peaks_of_signals[0]))
@@ -230,6 +232,7 @@ def pac(
     sPAC["MaxPAC_index"] = sPAC['PAC'].argmax(1,keepdims=True)
 
     if not return_torch:
+        sPAC['fA_values'] = mnt.ensure_numpy(sPAC['fA_values'])
         sPAC['PAC'] = mnt.ensure_numpy(sPAC['PAC'])
         sPAC['phase'] = mnt.ensure_numpy(sPAC['phase'])
         sPAC['fP'] = mnt.ensure_numpy(sPAC['fP'])
