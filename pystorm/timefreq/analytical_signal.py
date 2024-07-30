@@ -412,8 +412,18 @@ def get_source_hilbert_torch(
 
 
     windowed_signal_source = _get_scout_time_series(kernels, windowed_signal, collapse_function=collapse_function, device = device, **kwargs)
+    is_collapsed = True
     if isinstance(windowed_signal_source, tuple):
         windowed_signal_source, reference_PC = windowed_signal_source
+    elif isinstance(windowed_signal_source,list):
+        parcel_indices = [mnt.arange(0,windowed_signal_source[0].shape[0])]
+        counter = parcel_indices[0].shape[0]
+        for parcel in range(1,len(windowed_signal_source)):
+            parcel_indices.append(mnt.arange(0,windowed_signal_source[parcel].shape[0])+counter)
+            counter += windowed_signal_source[parcel].shape[0]
+        windowed_signal_source = mnt.cat(windowed_signal_source, dim = 0)
+        is_collapsed = False
+        
     if pad_size is not None:
         pad_size = int(pad_size*fs)
         padded_signal = mnt.cat([mnt.zeros(*windowed_signal_source.shape[:-1],pad_size, device=device),windowed_signal_source,mnt.zeros(*windowed_signal_source.shape[:-1],pad_size, device=device)], dim = -1).to(device)
@@ -428,6 +438,10 @@ def get_source_hilbert_torch(
     signal_fft[...,freqs>0] = signal_fft[...,freqs>0]*2
     analytical_signal = mnt.ifft(signal_fft)
     analytical_signal = analytical_signal[...,recover_signal_mask]
+    if not is_collapsed:
+        analytical_signal = [analytical_signal[parcel_indices[parcel]] for parcel in range(len(parcel_indices))]
+        if not return_torch or return_numba_compatible:
+            analytical_signal = mnt._np_array([mnt.ensure_numpy(analytical_signal_parcel) for analytical_signal_parcel in analytical_signal], dtype="O")
     try: 
         reference_PC = mnt.ensure_torch(reference_PC, move_to_CPU = return_on_CPU)
         if return_numba_compatible or not return_torch:

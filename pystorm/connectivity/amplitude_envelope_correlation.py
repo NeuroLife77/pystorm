@@ -1,3 +1,4 @@
+from functools import partial
 from numpy import sqrt as _np_sqrt
 from numpy import sum as _np_sum
 from numpy import zeros as _np_zeros
@@ -277,6 +278,15 @@ def get_source_AEC(
     connectivity = []
     if return_everything:
         analytical_signals = []
+    is_collapsed = True
+    if collapse_function is None and ((isinstance(kernels,list) and not mnt._ensure_torch(kernels)[0]) or (isinstance(kernels,mnt._ndarray) and kernels.dtype == 'O')):
+        parcel_indices = [mnt.arange(0,kernels[0].shape[0])]
+        counter = parcel_indices[0].shape[0]
+        for parcel in range(1,len(kernels)):
+            parcel_indices.append(mnt.arange(0,kernels[parcel].shape[0])+counter)
+            counter += kernels[parcel].shape[0]
+        kernels = mnt.cat([mnt.ensure_torch(kernel_parcel) for kernel_parcel in kernels], dim = 0)
+        is_collapsed = False
     for i in range(Nwin):
         iTimes =  time_sequence + i*(Lwin-Loverlap)
         
@@ -296,16 +306,26 @@ def get_source_AEC(
             analytical_signal = analytical_signal[0]
         if return_everything:
             analytical_signals.append(mnt.ensure_torch(analytical_signal[None,...]))
+
         analytical_signal = mnt.ensure_numpy(analytical_signal)
         
         if orthogonalize:
-            connectivity.append(mnt.ensure_torch(_get_orthogonalized_corr_loop(analytical_signal, symmetrize=symmetrize))[None,...])
+            conn = mnt.ensure_torch(_get_orthogonalized_corr_loop(analytical_signal, symmetrize=symmetrize))
         else:
-            connectivity.append(mnt.ensure_torch(_get_corr_loop(analytical_signal, symmetrize=symmetrize))[None,...])
+            conn = mnt.ensure_torch(_get_corr_loop(analytical_signal, symmetrize=symmetrize))
+        connectivity.append(conn[None,...])
+    connectivity = mnt.cat(connectivity, dim = 0).squeeze()
+    
+    if not return_torch:
+        connectivity = mnt.ensure_numpy(connectivity)
+        ensure_rest = partial(mnt.ensure_numpy, allow_object_dtype=True)
+    else:
+        ensure_rest = mnt.ensure_torch
     if return_everything:
-        if return_torch:
-            return mnt.ensure_torch(mnt.cat(connectivity, dim = 0).squeeze()), mnt.ensure_torch(unpadded_signal.squeeze()),  mnt.ensure_torch(mnt.cat(analytical_signals, dim = 0).squeeze())
-        return mnt.ensure_numpy(mnt.cat(connectivity, dim = 0).squeeze()), mnt.ensure_numpy(unpadded_signal.squeeze()),  mnt.ensure_numpy(mnt.cat(analytical_signals, dim = 0).squeeze())
-    if return_torch:
-        return mnt.ensure_torch(mnt.cat(connectivity, dim = 0).squeeze())
-    return mnt.ensure_numpy(mnt.cat(connectivity, dim = 0).squeeze())
+        unpadded_signal = ensure_rest(unpadded_signal.squeeze())
+        analytical_signals = ensure_rest(mnt.cat(analytical_signals, dim = 0).squeeze())
+    if not is_collapsed:
+            connectivity = ensure_rest([connectivity[...,parcel,:] for parcel in parcel_indices])
+    if return_everything:
+        return connectivity, unpadded_signal, analytical_signals
+    return connectivity

@@ -74,7 +74,12 @@ def get_scout_time_series(kernels, signal, collapse_function, device = "cpu", **
     
     signal_compute =  mnt.ensure_torch(signal).to(device)
     if collapse_function is None:
-        parcellated_signal = mnt.ensure_torch(kernels).to(device) @ signal_compute
+        if (isinstance(kernels,list) and not mnt._ensure_torch(kernels)[0]) or (isinstance(kernels,mnt._ndarray) and kernels.dtype == 'O'):
+            parcellated_signal = []
+            for parcel in range(len(kernels)):
+                parcellated_signal.append(mnt.ensure_torch(kernels[parcel]).to(device) @ signal_compute)
+        else:
+            parcellated_signal = mnt.ensure_torch(kernels).to(device) @ signal_compute
     elif collapse_function == "mean":
         parcellated_signal = mnt.zeros(len(kernels),signal_compute.shape[-1], device = device)
         for scout_index in range(parcellated_signal.shape[0]):

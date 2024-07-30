@@ -165,7 +165,7 @@ def ensure_torch(x, type_float: bool = False, type_complex: bool = False, move_t
     return x
 
 
-def ensure_numpy(x, type_float: bool = False, type_complex: bool = False):
+def ensure_numpy(x, type_float: bool = False, type_complex: bool = False, allow_object_dtype: bool = False):
     """ This function ensures that the variable is a numpy array.  It optionally also ensures that it is of the default type (as set by 'set_minitorch_default_dtype')
     
         Args: 
@@ -176,6 +176,8 @@ def ensure_numpy(x, type_float: bool = False, type_complex: bool = False):
                 Specifies whether to set the type of the tensor.
             type_complex: bool        
                 Specifies if the type of the tensor is meant to be complex
+            allow_object_dtype: bool
+                Specifies if it should also try to return an array of objects
         Returns: 
             x: numpy array (or original variable if casting failed)                 
                 The input ensured to be a numpy array.
@@ -216,7 +218,11 @@ def ensure_numpy(x, type_float: bool = False, type_complex: bool = False):
             x = x.astype(dtype_setting)
         return x
     except:
-        pass
+        if allow_object_dtype:
+            try:
+                x = _np_array(x, dtype="O")
+            except:
+                pass
     return x
 
 def _ensure_torch(x, type_float: bool = False, type_complex: bool = False):
