@@ -451,6 +451,107 @@ def get_source_hilbert_torch(
         if return_numba_compatible or not return_torch:
             return mnt.ensure_numpy(analytical_signal)
         return mnt.ensure_torch(analytical_signal, move_to_CPU = return_on_CPU)
+    
+
+def _get_source_hilbert_torch_sequential(
+                        kernels, signal, fs : int,
+                        collapse_function = None,
+                        pad_size = None,
+                        window_mask = None,
+                        device = "cpu",
+                        return_numba_compatible = False,
+                        return_torch = False, return_on_CPU = True, **kwargs
+    ):
+    """ This function applies the hilbert transformation on source signals using pytorch functions. It implements the extraction of parcel time series before computing the hilbert transform. Can be applied to signals of any shapes but only applies the transform over the last dimension of the signal (time series should be along dim=-1).
+    
+        Args: 
+            kernels: list/numpy array/torch tensor
+                The kernel or list of kernels to project the sensor data onto the source space (or parcel-specific source space)
+                    -If the collapse function is none the kernels should be of shape [nSources, nSensors].
+                    -Otherwise it should be a list of kernels (or an array of objects containing kernels) of length k with each element in the list being a matrix of shape [nSource_in_parcel, nSensors]. Given the variable number of sources per parcel it cannot be a single tensor/array of numbers. It can be a list of matrices or it can be a tensor/array of objects which elements are the matrices.
+            signal: list/numpy array/torch tensor 
+                The sensor space signal
+            fs : int
+                The signal's sampling rate.
+        Keyword Args: 
+            collapse_function: str
+                The function used to collapse the multiple signals from all sources within a parcel into a single signal.
+            pad_size : float
+                The size (in seconds) of the padding to add before applying the hilbert transform. 
+            window_mask : str
+                Specifies which part of the input signal to transform. [Only useful when applying windowed transform on signal that was previously filtered on its full length.]
+            device: str
+                Specifies the device in which to apply the filtering.
+            return_numba_compatible: bool
+                Specifies if the signal should be returned as numpy array (required for numba)
+            return_torch: bool
+                Specifies if the output should be a torch tensor.
+            return_on_CPU: bool
+                Specifies is the output should be moved to CPU (useful only on torch backend and using GPU as device)
+            kwargs: Expect to potentially receive the following additional arguments
+                reference_PC: numpy array (or torch tensor) 
+                    An array that aims to serve as reference to align the PCs across windows (or trials).
+        Returns: 
+            analytical_signal: numpy array (or torch tensor)                
+                The analytical signal.
+            reference_PC: numpy array (or torch tensor) 
+                Will return an array that aims to serve as reference to align the PCs across windows (or trials). Only happens if there is no 'reference_PC' key in the kwargs dict. 
+                    -In an iterative process (looping over time windows or trials): Collect the reference_PC on the first call of the function and pass it as keyword argument over the next function calls.
+    """
+
+    signal = mnt.ensure_torch(signal).to(device)
+    
+    if window_mask is not None: # Foreshadowing Amplitude Envelope Correlation implementation
+        window_mask = mnt.ensure_torch(window_mask)
+        windowed_signal = signal[..., window_mask]
+    else:
+        windowed_signal = signal
+
+
+    windowed_signal_sources = _get_scout_time_series(kernels, windowed_signal, collapse_function=collapse_function, device = device, **kwargs)
+    is_collapsed = True
+    if isinstance(windowed_signal_sources, tuple):
+        windowed_signal_sources, reference_PC = windowed_signal_sources
+    elif isinstance(windowed_signal_sources,list):
+        parcel_indices = [mnt.arange(0,windowed_signal_sources[0].shape[0])]
+        counter = parcel_indices[0].shape[0]
+        for parcel in range(1,len(windowed_signal_sources)):
+            parcel_indices.append(mnt.arange(0,windowed_signal_sources[parcel].shape[0])+counter)
+            counter += windowed_signal_sources[parcel].shape[0]
+        windowed_signal_sources = mnt.cat(windowed_signal_sources, dim = 0)
+        is_collapsed = False
+    analytical_signals = []
+    for source in range(len(windowed_signal_sources)):
+        windowed_signal_source = windowed_signal_sources[source]
+        if pad_size is not None:
+            pad_size = int(pad_size*fs)
+            padded_signal = mnt.cat([mnt.zeros(*windowed_signal_source.shape[:-1],pad_size, device=device),windowed_signal_source,mnt.zeros(*windowed_signal_source.shape[:-1],pad_size, device=device)], dim = -1).to(device)
+        else:
+            padded_signal = windowed_signal_source
+            pad_size = 0
+        
+        recover_signal_mask = mnt.arange(windowed_signal_source.shape[-1])+pad_size
+        freqs = mnt.fftfreq(padded_signal.shape[-1],d=1/fs)
+        signal_fft = mnt.fft(padded_signal)
+        signal_fft[...,freqs<0] = 0
+        signal_fft[...,freqs>0] = signal_fft[...,freqs>0]*2
+        analytical_signal = mnt.ifft(signal_fft)
+        analytical_signal = analytical_signal[...,recover_signal_mask]
+        analytical_signals.append(analytical_signal[None,...])
+    analytical_signals = mnt.cat(analytical_signals, axis = 0)
+    if not is_collapsed:
+        analytical_signals = [analytical_signals[parcel_indices[parcel]] for parcel in range(len(parcel_indices))]
+        if not return_torch or return_numba_compatible:
+            analytical_signals = mnt._np_array([mnt.ensure_numpy(analytical_signal_parcel) for analytical_signal_parcel in analytical_signals], dtype="O")
+    try: 
+        reference_PC = mnt.ensure_torch(reference_PC, move_to_CPU = return_on_CPU)
+        if return_numba_compatible or not return_torch:
+            return mnt.ensure_numpy(analytical_signals), reference_PC
+        return mnt.ensure_torch(analytical_signals, move_to_CPU = return_on_CPU), reference_PC
+    except:
+        if return_numba_compatible or not return_torch:
+            return mnt.ensure_numpy(analytical_signals)
+        return mnt.ensure_torch(analytical_signals, move_to_CPU = return_on_CPU)
 
 
 ########################################- Numba compatible functions [Not used yet] - ########################################

@@ -32,6 +32,7 @@ Currently experiencing issues with the scipy backend, so most new functions are 
 - Sign flip based on cortical surface orientations for parcellated source signal
 - PAC and [tPAC](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/process/functions/process_pac_dynamic.m) (time-resolved Phase-Amplitude Coupling) with [surrogate data z-score](https://github.com/brainstorm-tools/brainstorm3/blob/master/toolbox/process/functions/process_pac_dynamic_sur2.m)
 - Morlet wavelet coefficients. Only implemented with pytorch backend and does not speed up the convolution with FFT.
+- Phase lag index (including PLI,wPLI,dwPLI). Works both in source space and sensor space.
 
 ### Coming soon
 - TBD

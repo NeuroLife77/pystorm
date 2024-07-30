@@ -1,29 +1,29 @@
 from functools import partial
-from numpy import sqrt as _np_sqrt
-from numpy import sum as _np_sum
 from numpy import zeros as _np_zeros
 from numpy import abs as _np_abs
 from numpy import imag as _np_imag
 from numpy import conj as _np_conj
-from numpy import diag as _np_diag
+from numpy import sign as _np_sign
 from numba import njit as _njit
 from pystorm.signal_processing import band_pass as _band_pass
 from pystorm import minitorch as mnt
 from pystorm.timefreq.analytical_signal import hilbert as _hilbert
 from pystorm.utils.time_series_utils import get_data_cov as _get_data_cov
-from pystorm.timefreq.analytical_signal import get_source_hilbert_torch as _get_source_hilbert_torch
-__all__ = ["get_AEC", "get_source_AEC"]
+from pystorm.timefreq.analytical_signal import get_source_hilbert_torch as _get_source_hilbert_torch 
+from pystorm.timefreq.analytical_signal import _get_source_hilbert_torch_sequential 
+__all__ = ["get_pli", "get_source_pli"]
 
+pli_dict = {"pli":1,"wpli":2,"dwpli":3}
 
-def get_AEC(
+def get_pli(
                     signal, fs,
                     band, ripple = 60, width = 1, 
                     keep_pad_percent_for_hilbert = 0.2, sliding_window_size = None, overlap = 0.0,
                     convolve_type = "auto",
-                    orthogonalize = True, symmetrize = False,
+                    pli_type = "wpli", use_RAM_efficient = True,
                     backend = "torch", device = "cpu", verbose = 1, return_torch = False
     ):
-    """ This function computes the amplitude envelope correlation of a signal within a specific band. It can only be applied to signal directly and does not handle projection from sensor to source space. It first band pass filters the whole signal and then windows it (if sliding_window_size is not None) before computing the hilbert transform and the correlation coefficients.
+    """ This function computes the phase lag index (PLI) of a signal within a specific band. It can only be applied to signal directly and does not handle projection from sensor to source space. It first band pass filters the whole signal and then windows it (if sliding_window_size is not None) before computing the hilbert transform and the connectivity values.
     
         Args: 
             signal: list/numpy array/torch tensor 
@@ -31,7 +31,7 @@ def get_AEC(
             fs : int
                 The signal's sampling rate.
             band: list/numpy array/torch tensor 
-                Contains the frequency range of the band over which to compute the amplitude envelope correlation.
+                Contains the frequency range of the band over which to compute the PLI.
         Keyword Args: 
             ripple : float
                 Positive number specifying maximum ripple in passband (dB) and minimum
@@ -47,10 +47,8 @@ def get_AEC(
                 Overlap percentage between windows (in 0-1 range)
             convolve_type : str
                 Specifies which method to use for convolution.
-            orthogonalize : bool
-                Whether to use 'oenv' (when set to True) or 'henv' (when set to False) to compute the AEC. While this operation is numba compiled 'oenv' take significantly longer to run.
-            symmetrize : bool
-                Whether to return the symmetric matrix (R + R.T)/2 instead of R.
+            pli_type: str
+                Specifies if 'pli', 'wpli', or 'dwpli' is to be used.
             device: str
                 Specifies the device in which to apply the filtering.
             verbose: int
@@ -60,7 +58,8 @@ def get_AEC(
         Returns: 
             connectivity: numpy array (or torch tensor) of shape (n_signals, n_signals) if not windowed or (Nwin, n_signals, n_signals) if windowed.
     """
-    
+    pli_function  = _get_PLI_loop_RAM_efficient
+    pli_selected = pli_dict[pli_type]
 
     filtered_signal, signal_mask = _band_pass(
                                                 signal,fs,
@@ -97,100 +96,83 @@ def get_AEC(
                                         backend = backend, device=device
                             )
         analytical_signal = mnt.ensure_numpy(analytical_signal)
-        if orthogonalize:
-            connectivity.append(mnt.ensure_torch(_get_orthogonalized_corr_loop(analytical_signal, symmetrize=symmetrize))[None,...])
-        else:
-            connectivity.append(mnt.ensure_torch(_get_corr_loop(analytical_signal, symmetrize=symmetrize))[None,...])
+        conn = mnt.ensure_torch(pli_function(analytical_signal, pli_type = pli_selected))
+        connectivity.append(conn[None,...])
     if return_torch:
         return mnt.ensure_torch(mnt.cat(connectivity, dim = 0).squeeze())
     return mnt.ensure_numpy(mnt.cat(connectivity, dim = 0).squeeze())
 
-
 @_njit
-def _normr(x, remove_mean = False):
-    if remove_mean:
-        x_mean_centered = x-(x.sum(1)/x.shape[1])[:,None]
-    else:
-        x_mean_centered = x
-    n = _np_sqrt(_np_sum(x_mean_centered**2, axis = 1))
-    if (n!=0).sum()>0:
-        x_mean_centered[n!=0,:] = x_mean_centered[n!=0,:]/(n[n!=0])[:,None]
-    x_mean_centered[n==0,:] = x_mean_centered[n==0,:]/_np_sqrt(x_mean_centered.shape[1])
-    return x_mean_centered
-
-@_njit
-def _corrn(x,y, remove_mean = False):
-    Xc = _normr(x,remove_mean=remove_mean)
-    Yc = _normr(y,remove_mean=remove_mean).conj().T
-    return Xc @ Yc
-
-## It's not pretty, but it fix the numba slow down from having to add an axis to analytical_signal[i] when passing it in _corrn.
-@_njit  
-def _get_orthogonalized_corr_loop(analytical_signal, symmetrize = False):
+def _get_PLI_loop(analytical_signal, pli_type = 1):
+    if pli_type < 1 or pli_type>3:
+        raise ValueError("pli_type can only take values within [1,2,3]")
     n_signals = analytical_signal.shape[0]
+    n_time_points = analytical_signal.shape[-1]
     i = 0
     R = _np_zeros((n_signals,n_signals))
     for i in range(n_signals-1):
-        R[i,:] = _np_abs(_corrn(
-                            _np_abs(analytical_signal[i:i+1]), # abs(X)
-                            _np_abs(
-                                    _np_imag(analytical_signal * _np_conj(analytical_signal[i:i+1]))/_np_abs(analytical_signal[i:i+1]) # imag(Y * conj(X))/abs(X)
-                            ),
-                            remove_mean=True
-                ))[0]/2 + _np_diag(_np_abs(_corrn(
-                            _np_abs(
-                                    _np_imag(analytical_signal[i:i+1] * _np_conj(analytical_signal))/_np_abs(analytical_signal)# imag(X * conj(Y))/abs(Y)
-                            ),                                    
-                            _np_abs(analytical_signal), # abs(Y)
-                            remove_mean=True
-                )))/2
-    R[-1,:] = _np_abs(_corrn(
-                            _np_abs(analytical_signal[-1:]), # abs(X)
-                            _np_abs(
-                                    _np_imag(analytical_signal * _np_conj(analytical_signal[-1:]))/_np_abs(analytical_signal[-1:]) # imag(Y * conj(X))/abs(X)
-                            ),
-                            remove_mean=True
-                ))[0]/2 + _np_diag(_np_abs(_corrn(
-                            _np_abs(
-                                    _np_imag(analytical_signal[-1:] * _np_conj(analytical_signal))/_np_abs(analytical_signal)# imag(X * conj(Y))/abs(Y)
-                            ),                                    
-                            _np_abs(analytical_signal), # abs(Y)
-                            remove_mean=True
-                )))/2
-    if  symmetrize:
-        R = (R + R.T)/2
+        Sab = analytical_signal * _np_conj(analytical_signal[i:i+1])
+        if pli_type == 1:
+            R[i,:] =_np_sign(_np_imag(Sab)).sum(axis = -1)/n_time_points
+        elif pli_type == 2:
+            R[i,:] =(_np_imag(Sab).sum(axis = -1)/n_time_points)/(_np_abs(_np_imag(Sab)).sum(axis = -1)/n_time_points)
+        elif pli_type == 3:
+            sqrd_Sab_imag = (_np_imag(Sab)**2).sum(axis = -1)/n_time_points
+            R[i,:] =((_np_imag(Sab).sum(axis = -1)/n_time_points)**2 - sqrd_Sab_imag)/((_np_abs(_np_imag(Sab)).sum(axis = -1)/n_time_points)**2 - sqrd_Sab_imag)
+    Sab = analytical_signal * _np_conj(analytical_signal[-1:])
+    i = -1
+    if pli_type == 1:
+        R[i,:] =_np_sign(_np_imag(Sab)).sum(axis = -1)/n_time_points
+    elif pli_type == 2:
+        R[i,:] =(_np_imag(Sab).sum(axis = -1)/n_time_points)/(_np_abs(_np_imag(Sab)).sum(axis = -1)/n_time_points)
+    elif pli_type == 3:
+        sqrd_Sab_imag = (_np_imag(Sab)**2).sum(axis = -1)/n_time_points
+        R[i,:] =((_np_imag(Sab).sum(axis = -1)/n_time_points)**2 - sqrd_Sab_imag)/((_np_abs(_np_imag(Sab)).sum(axis = -1)/n_time_points)**2 - sqrd_Sab_imag)
     return R
 
 
-@_njit  
-def _get_corr_loop(analytical_signal, symmetrize = False):
+@_njit
+def _get_PLI_loop_RAM_efficient(analytical_signal, pli_type = 1):
+    if pli_type < 1 or pli_type>3:
+        raise ValueError("pli_type can only take values within [1,2,3]")
     n_signals = analytical_signal.shape[0]
+    n_time_points = analytical_signal.shape[-1]
+    i = 0
     R = _np_zeros((n_signals,n_signals))
-    for i in range(n_signals-1):
-        R[i,:] = _corrn(
-                            _np_abs(analytical_signal[i:i+1]), # abs(X)
-                            _np_abs(analytical_signal),  # abs(Y)
-                            remove_mean=True
-                )[0]
-    R[-1,:] = _corrn(
-                            _np_abs(analytical_signal[-1:]), # abs(X)
-                            _np_abs(analytical_signal),  # abs(Y)
-                            remove_mean=True
-                )[0]
-    if  symmetrize:
-        R = (R + R.T)/2
+    for i in range(n_signals):
+        for j in range(i,n_signals):
+            Sab = analytical_signal[j] * _np_conj(analytical_signal[i])
+            if pli_type == 1:
+                R[i,j] =_np_sign(_np_imag(Sab)).sum(axis = -1)/n_time_points
+            elif pli_type == 2:
+                numerator = (_np_imag(Sab).sum(axis = -1)/n_time_points)
+                denominator = (_np_abs(_np_imag(Sab)).sum(axis = -1)/n_time_points)
+                if denominator != 0:
+                    R[i,j] =numerator/denominator
+
+            elif pli_type == 3:
+                sqrd_Sab_imag = (_np_imag(Sab)**2).sum(axis = -1)/n_time_points
+                numerator = ((_np_imag(Sab).sum(axis = -1)/n_time_points)**2 - sqrd_Sab_imag)
+                denominator = ((_np_abs(_np_imag(Sab)).sum(axis = -1)/n_time_points)**2 - sqrd_Sab_imag)
+                if denominator != 0:
+                    R[i,j] =numerator/denominator
+    if pli_type == 1 or pli_type == 2:
+        R = R - R.T
+    elif pli_type == 3:
+        R = R + R.T
     return R
 
-def get_source_AEC(
+def get_source_pli(
                     kernels,signal, fs,
                     band, ripple = 60, width = 1, 
                     collapse_function = "pca",
                     keep_pad_percent_for_hilbert = 0.2, sliding_window_size = None, overlap = 0.0,
                     convolve_type = "auto",
-                    orthogonalize = True, symmetrize = False,
+                    pli_type = "wpli", use_RAM_efficient = False, 
+                    use_sequential_hilbert = False,
                     backend = "torch", device = "cpu", verbose = 1, return_torch = False, return_everything = False, **kwargs
     ):
-    """ This function computes the amplitude envelope correlation of a signal within a specific band. It is applied to the source-space signal by implementing the projection from sensor to source space using a 'collapse_function' applied over all sources within a parcel to give a parcel time series. It first band pass filters the whole signal and then windows it (if sliding_window_size is not None) before computing the hilbert transform and the correlation coefficients.
+    """ This function computes the phase lag index (PLI) of a signal within a specific band. It is applied to the source-space signal by implementing the projection from sensor to source space using a 'collapse_function' applied over all sources within a parcel to give a parcel time series. It first band pass filters the whole signal and then windows it (if sliding_window_size is not None) before computing the hilbert transform and the connectivity values.
     
         Args: 
             kernels: list/numpy array/torch tensor
@@ -202,7 +184,7 @@ def get_source_AEC(
             fs: int
                 The signal's sampling rate.
             band: list/numpy array/torch tensor 
-                Contains the frequency range of the band over which to compute the amplitude envelope correlation.
+                Contains the frequency range of the band over which to compute the PLI.
         Keyword Args: 
             ripple: float
                 Positive number specifying maximum ripple in passband (dB) and minimum
@@ -220,10 +202,8 @@ def get_source_AEC(
                 Overlap percentage between windows (in 0-1 range)
             convolve_type: str
                 Specifies which method to use for convolution.
-            orthogonalize: bool
-                Whether to use 'oenv' (when set to True) or 'henv' (when set to False) to compute the AEC. While this operation is numba compiled 'oenv' take significantly longer to run.
-            symmetrize: bool
-                Whether to return the symmetric matrix (R + R.T)/2 instead of R.
+            pli_type: str
+                Specifies if 'pli', 'wpli', or 'dwpli' is to be used.
             device: str
                 Specifies the device in which to apply the filtering.
             verbose: int
@@ -243,7 +223,13 @@ def get_source_AEC(
                 analytical_signal: numpy array (or torch tensor)                
                     The parcellated source space windowed analytical signals used to compute the AEC coefficients.
     """
-    
+    pli_function  = _get_PLI_loop_RAM_efficient
+    if use_sequential_hilbert:
+        hilbert_fun = _get_source_hilbert_torch_sequential
+    else:
+        hilbert_fun = _get_source_hilbert_torch
+
+    pli_selected = pli_dict[pli_type]
 
     filtered_signal, signal_mask = _band_pass(
                                                 signal,fs,
@@ -257,7 +243,7 @@ def get_source_AEC(
                                 
 
     signal_mask = mnt.ensure_torch(signal_mask==1.0)
-    
+
     pad_size = mnt.argwhere(signal_mask)[0]//fs
     unpadded_signal = filtered_signal[...,signal_mask]
     if collapse_function == "pca":
@@ -290,7 +276,7 @@ def get_source_AEC(
     for i in range(Nwin):
         iTimes =  time_sequence + i*(Lwin-Loverlap)
         
-        analytical_signal = _get_source_hilbert_torch(
+        analytical_signal = hilbert_fun(
                                         kernels,
                                         unpadded_signal, fs,
                                         pad_size = pad_size,
@@ -306,16 +292,12 @@ def get_source_AEC(
             analytical_signal = analytical_signal[0]
         if return_everything:
             analytical_signals.append(mnt.ensure_torch(analytical_signal[None,...]))
-
         analytical_signal = mnt.ensure_numpy(analytical_signal)
+        conn = mnt.ensure_torch(pli_function(analytical_signal, pli_type = pli_selected))
         
-        if orthogonalize:
-            conn = mnt.ensure_torch(_get_orthogonalized_corr_loop(analytical_signal, symmetrize=symmetrize))
-        else:
-            conn = mnt.ensure_torch(_get_corr_loop(analytical_signal, symmetrize=symmetrize))
         connectivity.append(conn[None,...])
     connectivity = mnt.cat(connectivity, dim = 0).squeeze()
-    
+
     if not return_torch:
         connectivity = mnt.ensure_numpy(connectivity)
         ensure_rest = partial(mnt.ensure_numpy, allow_object_dtype=True)
@@ -331,3 +313,4 @@ def get_source_AEC(
     if return_everything:
         return connectivity, unpadded_signal, analytical_signals
     return connectivity
+    
