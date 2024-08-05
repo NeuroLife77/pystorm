@@ -19,6 +19,7 @@ def get_AEC(
                     signal, fs,
                     band, ripple = 60, width = 1, 
                     keep_pad_percent_for_hilbert = 0.2, sliding_window_size = None, overlap = 0.0,
+                    return_time_resolved = True,
                     convolve_type = "auto",
                     orthogonalize = True, symmetrize = False,
                     backend = "torch", device = "cpu", verbose = 1, return_torch = False
@@ -45,6 +46,8 @@ def get_AEC(
                 Size of the sliding window (in seconds)
             overlap : float
                 Overlap percentage between windows (in 0-1 range)
+            return_time_resolved: bool
+                Specifies whether to return the connectivity for each sliding window (returns the average if false).
             convolve_type : str
                 Specifies which method to use for convolution.
             orthogonalize : bool
@@ -98,12 +101,22 @@ def get_AEC(
                             )
         analytical_signal = mnt.ensure_numpy(analytical_signal)
         if orthogonalize:
-            connectivity.append(mnt.ensure_torch(_get_orthogonalized_corr_loop(analytical_signal, symmetrize=symmetrize))[None,...])
+            conn = mnt.ensure_torch(_get_orthogonalized_corr_loop(analytical_signal, symmetrize=symmetrize))
+            
         else:
-            connectivity.append(mnt.ensure_torch(_get_corr_loop(analytical_signal, symmetrize=symmetrize))[None,...])
+            conn = mnt.ensure_torch(_get_corr_loop(analytical_signal, symmetrize=symmetrize))[None,...]
+        if return_time_resolved:
+            connectivity.append(conn[None,...])
+        else:
+            if isinstance(connectivity,list):
+                connectivity = conn/Nwin 
+            else:
+                connectivity += conn/Nwin
+    if isinstance(connectivity,list):
+        connectivity = mnt.cat(connectivity, dim = 0).squeeze()
     if return_torch:
-        return mnt.ensure_torch(mnt.cat(connectivity, dim = 0).squeeze())
-    return mnt.ensure_numpy(mnt.cat(connectivity, dim = 0).squeeze())
+        return mnt.ensure_torch(connectivity)
+    return mnt.ensure_numpy(connectivity)
 
 
 @_njit
@@ -186,6 +199,7 @@ def get_source_AEC(
                     band, ripple = 60, width = 1, 
                     collapse_function = "pca",
                     keep_pad_percent_for_hilbert = 0.2, sliding_window_size = None, overlap = 0.0,
+                    return_time_resolved = True,
                     convolve_type = "auto",
                     orthogonalize = True, symmetrize = False,
                     backend = "torch", device = "cpu", verbose = 1, return_torch = False, return_everything = False, **kwargs
@@ -218,6 +232,8 @@ def get_source_AEC(
                 Size of the sliding window (in seconds)
             overlap: float
                 Overlap percentage between windows (in 0-1 range)
+            return_time_resolved: bool
+                Specifies whether to return the connectivity for each sliding window (returns the average if false).
             convolve_type: str
                 Specifies which method to use for convolution.
             orthogonalize: bool
@@ -243,6 +259,8 @@ def get_source_AEC(
                 analytical_signal: numpy array (or torch tensor)                
                     The parcellated source space windowed analytical signals used to compute the AEC coefficients.
     """
+    if return_everything:
+        return_time_resolved = return_everything
     
 
     filtered_signal, signal_mask = _band_pass(
@@ -313,8 +331,15 @@ def get_source_AEC(
             conn = mnt.ensure_torch(_get_orthogonalized_corr_loop(analytical_signal, symmetrize=symmetrize))
         else:
             conn = mnt.ensure_torch(_get_corr_loop(analytical_signal, symmetrize=symmetrize))
-        connectivity.append(conn[None,...])
-    connectivity = mnt.cat(connectivity, dim = 0).squeeze()
+        if return_time_resolved:
+            connectivity.append(conn[None,...])
+        else:
+            if isinstance(connectivity,list):
+                connectivity = conn/Nwin 
+            else:
+                connectivity += conn/Nwin
+    if isinstance(connectivity,list):
+        connectivity = mnt.cat(connectivity, dim = 0).squeeze()
     
     if not return_torch:
         connectivity = mnt.ensure_numpy(connectivity)
