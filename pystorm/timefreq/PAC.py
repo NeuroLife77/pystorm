@@ -32,7 +32,7 @@ def pac(
 
     """ This function extracts Phase Amplitude Coupling (PAC) from the signals in addition to z-score values obtained from testing against surrogate data (block-resampling). 
     
-    It also implements time-resolved PAC when provided with a window_length and/or n_win. 
+    It also implements time-resolved PAC when provided with a window_length and/or n_win.
     
     It can take multiple signals at the same time and applies the function over the last dimension of the signal (time series should be along dim=-1).
     
@@ -52,6 +52,8 @@ def pac(
                 Specifies the length (in seconds) of the sliding windows (if tPAC)
             n_win: int
                 Specifies the number of sliding windows (if tPAC), will default to a computed max_n_win if 'None'
+            window_offset: float
+                Specifies an offset (in seconds) to the start of the windowing for tPAC.
             overlap: float
                 Specifies the overlap (between 0 and 1) of the sliding windows (if tPAC)
             ripple : float
@@ -169,6 +171,7 @@ def pac(
                         closest_peak = distance_between_env_peaks_and_signal_peaks.amin(1).argmin(0)
                     else:
                         closest_peak = None
+                        continue
                     fP_freq = peaks_of_envelope[window_index][signal_index][fA_index][closest_peak].squeeze()
                     
                     fP_band = [fP_freq-0.5,fP_freq+0.5]
