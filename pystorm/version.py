@@ -1,1 +1,2 @@
-__version__="0.1.18"
+__pname__ = "pystorm3"
+__pversion__="0.1.19"

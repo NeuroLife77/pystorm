@@ -28,6 +28,9 @@ from torch import eye as _eye
 from torch import argwhere as _argwhere
 from torch import logical_or as _logical_or
 from torch import logical_and as _logical_and
+from torch import where as _where
+from torch import isnan as _isnan
+from torch import isinf as _isinf
 from torchaudio.functional import convolve as _convolve
 from torchaudio.functional import fftconvolve as _fftconvolve
 from torch import float16,float32,float64
@@ -927,3 +930,71 @@ def logical_or(*args,**kwargs):
         out (Tensor, optional): the output tensor.
     """
     return _logical_or(*args,**kwargs)
+
+def where(*args,**kwargs):
+    """
+    where(condition, input, other, *, out=None) -> Tensor
+
+    Return a tensor of elements selected from either :attr:`input` or :attr:`other`, depending on :attr:`condition`.
+
+    The operation is defined as:
+
+    .. math::
+        \text{out}_i = \begin{cases}
+            \text{input}_i & \text{if } \text{condition}_i \\
+            \text{other}_i & \text{otherwise} \\
+        \end{cases}
+
+    .. note::
+        The tensors :attr:`condition`, :attr:`input`, :attr:`other` must be :ref:`broadcastable <broadcasting-semantics>`.
+
+    Arguments:
+        condition (BoolTensor): When True (nonzero), yield input, otherwise yield other
+        input (Tensor or Scalar): value (if :attr:`input` is a scalar) or values selected at indices
+                            where :attr:`condition` is ``True``
+        other (Tensor or Scalar): value (if :attr:`other` is a scalar) or values selected at indices
+                            where :attr:`condition` is ``False``
+
+    Keyword args:
+        out (Tensor, optional): the output tensor.
+
+    Returns:
+        Tensor: A tensor of shape equal to the broadcasted shape of :attr:`condition`, :attr:`input`, :attr:`other`
+    """
+    return _where(*args,**kwargs)
+
+def isnan(*args,**kwargs):
+    """
+    isnan(input) -> Tensor
+
+    Returns a new tensor with boolean elements representing if each element of :attr:`input`
+    is NaN or not. Complex values are considered NaN when either their real
+    and/or imaginary part is NaN.
+
+    Arguments:
+        input (Tensor): the input tensor.
+
+    Returns:
+        A boolean tensor that is True where :attr:`input` is NaN and False elsewhere
+    """
+    return _isnan(*args,**kwargs)
+
+def isinf(*args,**kwargs):
+    """
+    isinf(input) -> Tensor
+
+    Tests if each element of :attr:`input` is infinite
+    (positive or negative infinity) or not.
+
+    .. note::
+        Complex values are infinite when their real or imaginary part is
+        infinite.
+
+    Args:
+        input (Tensor): the input tensor.
+
+    Returns:
+        A boolean tensor that is True where :attr:`input` is infinite and False elsewhere
+
+    """
+    return _isinf(*args,**kwargs)

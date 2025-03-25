@@ -1,16 +1,20 @@
 from setuptools import setup, find_packages
 from os.path import join as os_join
 
+
+
 # Get the current version number from inside the module
+__pname__,__pversion__ = "","" # Just to get rid of VSc warning highlights
 with open(os_join('pystorm', 'version.py')) as version_file:
     exec(version_file.read())
 
 with open('README.md', 'r') as f:
     long_description = f.read()
 
+print(f"\nBuilding {__pname__} version {__pversion__}\n")
 setup(
-   name='pystorm3',
-   version=__version__,
+   name=__pname__,
+   version=__pversion__,
    description='Python implementation of some Brainstorm functions',
    license="GPL-3.0 license",
    long_description=long_description,
